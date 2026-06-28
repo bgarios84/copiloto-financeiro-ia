@@ -1,0 +1,226 @@
+@import "tailwindcss";
+@plugin "tailwindcss-animate";
+
+/* ============================================================
+   DESIGN TOKENS — Copiloto Financeiro IA
+   Premium fintech design system · Tailwind v4
+   ============================================================ */
+
+@theme inline {
+  /* Colors */
+  --color-background:                var(--background);
+  --color-foreground:                var(--foreground);
+  --color-card:                      var(--card);
+  --color-card-foreground:           var(--card-foreground);
+  --color-popover:                   var(--popover);
+  --color-popover-foreground:        var(--popover-foreground);
+  --color-primary:                   var(--primary);
+  --color-primary-foreground:        var(--primary-foreground);
+  --color-secondary:                 var(--secondary);
+  --color-secondary-foreground:      var(--secondary-foreground);
+  --color-muted:                     var(--muted);
+  --color-muted-foreground:          var(--muted-foreground);
+  --color-accent:                    var(--accent);
+  --color-accent-foreground:         var(--accent-foreground);
+  --color-destructive:               var(--destructive);
+  --color-destructive-foreground:    var(--destructive-foreground);
+  --color-border:                    var(--border);
+  --color-input:                     var(--input);
+  --color-ring:                      var(--ring);
+  --color-sidebar:                   var(--sidebar);
+  --color-sidebar-foreground:        var(--sidebar-foreground);
+  --color-sidebar-border:            var(--sidebar-border);
+  --color-sidebar-accent:            var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-muted:             var(--sidebar-muted);
+  --color-success:                   var(--success);
+  --color-success-foreground:        var(--success-foreground);
+  --color-warning:                   var(--warning);
+  --color-warning-foreground:        var(--warning-foreground);
+  --color-positive:                  var(--positive);
+  --color-negative:                  var(--negative);
+
+  /* Typography */
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-mono: ui-monospace, "Cascadia Code", "Fira Code", monospace;
+
+  /* Border radius */
+  --radius-none: 0;
+  --radius-xs:   0.25rem;
+  --radius-sm:   calc(var(--radius) - 4px);
+  --radius-md:   calc(var(--radius) - 2px);
+  --radius-lg:   var(--radius);
+  --radius-xl:   calc(var(--radius) + 4px);
+  --radius-2xl:  calc(var(--radius) + 8px);
+  --radius-3xl:  1.5rem;
+  --radius-full: 9999px;
+
+  /* Shadows */
+  --shadow-xs:   0 1px 2px 0 rgb(0 0 0 / 0.04);
+  --shadow-sm:   0 1px 3px 0 rgb(0 0 0 / 0.06), 0 1px 2px -1px rgb(0 0 0 / 0.04);
+  --shadow-md:   0 4px 8px -2px rgb(0 0 0 / 0.08), 0 2px 4px -2px rgb(0 0 0 / 0.04);
+  --shadow-lg:   0 12px 24px -4px rgb(0 0 0 / 0.08), 0 4px 8px -2px rgb(0 0 0 / 0.04);
+  --shadow-xl:   0 24px 48px -8px rgb(0 0 0 / 0.12), 0 8px 16px -4px rgb(0 0 0 / 0.06);
+  --shadow-card: 0 1px 2px 0 rgb(0 0 0 / 0.04), 0 0 0 1px rgb(0 0 0 / 0.04);
+  --shadow-card-hover: 0 4px 12px 0 rgb(0 0 0 / 0.08), 0 0 0 1px rgb(0 0 0 / 0.06);
+
+  /* Layout */
+  --sidebar-width:           15rem;
+  --sidebar-width-collapsed: 3.5rem;
+  --header-height:           3.5rem;
+  --footer-height:           2.75rem;
+}
+
+/* ============================================================
+   LIGHT THEME — Linear / Stripe inspired
+   ============================================================ */
+:root {
+  --radius: 0.5rem;
+
+  --background:           #F7F8FA;
+  --foreground:           #0D1117;
+  --card:                 #FFFFFF;
+  --card-foreground:      #0D1117;
+  --popover:              #FFFFFF;
+  --popover-foreground:   #0D1117;
+
+  /* Primary — Blue (Stripe) */
+  --primary:              #2563EB;
+  --primary-foreground:   #FFFFFF;
+
+  /* Secondary */
+  --secondary:            #F0F2F5;
+  --secondary-foreground: #374151;
+
+  /* Muted */
+  --muted:                #F0F2F5;
+  --muted-foreground:     #6B7280;
+
+  /* Accent — Emerald */
+  --accent:               #059669;
+  --accent-foreground:    #FFFFFF;
+
+  /* Destructive */
+  --destructive:          #DC2626;
+  --destructive-foreground: #FFFFFF;
+
+  /* Borders */
+  --border:               #E5E7EB;
+  --input:                #E5E7EB;
+  --ring:                 #2563EB;
+
+  /* Sidebar — deep navy */
+  --sidebar:              #0D1117;
+  --sidebar-foreground:   #C9D1D9;
+  --sidebar-border:       #21262D;
+  --sidebar-accent:       #161B22;
+  --sidebar-accent-foreground: #F0F6FF;
+  --sidebar-muted:        #8B949E;
+
+  /* Semantic */
+  --success:              #059669;
+  --success-foreground:   #FFFFFF;
+  --warning:              #D97706;
+  --warning-foreground:   #FFFFFF;
+  --positive:             #059669;
+  --negative:             #DC2626;
+}
+
+/* ============================================================
+   DARK THEME
+   ============================================================ */
+.dark {
+  --background:           #0D1117;
+  --foreground:           #E6EDF3;
+  --card:                 #161B22;
+  --card-foreground:      #E6EDF3;
+  --popover:              #1C2128;
+  --popover-foreground:   #E6EDF3;
+
+  --primary:              #3B82F6;
+  --primary-foreground:   #FFFFFF;
+
+  --secondary:            #21262D;
+  --secondary-foreground: #C9D1D9;
+
+  --muted:                #21262D;
+  --muted-foreground:     #8B949E;
+
+  --accent:               #10B981;
+  --accent-foreground:    #FFFFFF;
+
+  --destructive:          #F87171;
+  --destructive-foreground: #0D1117;
+
+  --border:               #30363D;
+  --input:                #21262D;
+  --ring:                 #3B82F6;
+
+  --sidebar:              #010409;
+  --sidebar-foreground:   #C9D1D9;
+  --sidebar-border:       #21262D;
+  --sidebar-accent:       #0D1117;
+  --sidebar-accent-foreground: #F0F6FF;
+  --sidebar-muted:        #6E7681;
+
+  --success:              #10B981;
+  --success-foreground:   #0D1117;
+  --warning:              #FBBF24;
+  --warning-foreground:   #0D1117;
+  --positive:             #10B981;
+  --negative:             #F87171;
+}
+
+/* ============================================================
+   BASE STYLES
+   ============================================================ */
+@layer base {
+  * {
+    border-color: var(--border);
+    outline-color: var(--ring);
+  }
+
+  body {
+    background-color: var(--background);
+    color: var(--foreground);
+    font-family: var(--font-sans);
+    font-feature-settings: "rlig" 1, "calt" 1, "tnum" 1;
+    font-variant-numeric: tabular-nums;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+
+  ::-webkit-scrollbar        { width: 5px; height: 5px; }
+  ::-webkit-scrollbar-track  { background: transparent; }
+  ::-webkit-scrollbar-thumb  { background: var(--border); border-radius: 9999px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--muted-foreground); }
+}
+
+/* ============================================================
+   UTILITY CLASSES
+   ============================================================ */
+@layer utilities {
+  .text-positive { color: var(--positive); }
+  .text-negative { color: var(--negative); }
+
+  .text-gradient-primary {
+    background: linear-gradient(135deg, #2563EB 0%, #7C3AED 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .glass {
+    background: rgb(255 255 255 / 0.8);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+  }
+  .dark .glass {
+    background: rgb(13 17 23 / 0.8);
+  }
+}
