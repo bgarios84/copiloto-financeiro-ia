@@ -20,6 +20,7 @@ import {
   Building2,
   Calendar,
   CreditCard,
+  PiggyBank,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -41,6 +42,7 @@ const NAV_MAIN: NavItem[] = [
   { label: "Contas",        href: "/accounts",     icon: Building2       },
   { label: "Cartoes",       href: "/credit-cards", icon: CreditCard      },
   { label: "Transacoes",    href: "/transactions", icon: ArrowLeftRight  },
+  { label: "Orcamentos",    href: "/budgets",      icon: PiggyBank       },
   { label: "Investimentos", href: "/investments",  icon: TrendingUp      },
   { label: "Patrimonio",    href: "/portfolio",    icon: PieChart        },
   { label: "Metas",         href: "/budget",       icon: Target          },
