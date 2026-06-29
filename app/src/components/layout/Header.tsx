@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Menu, Moon, Sun, Monitor, Bell, Search, Command } from "lucide-react";
+import { Menu, Moon, Sun, Monitor, Bell, Search, Command, LogOut, User, ChevronDown } from "lucide-react";
 import { useTheme } from "next-themes";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/sheet";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { LAYOUT } from "@/shared/constants/theme";
+import { logout } from "@/lib/auth/actions";
 
 // ── Theme Toggle ──────────────────────────────────────────────
 
@@ -53,7 +54,7 @@ function ThemeToggle() {
   );
 }
 
-// ── Search trigger ────────────────────────────────────────────
+// ── Search Trigger ────────────────────────────────────────────
 
 function SearchTrigger() {
   return (
@@ -96,20 +97,124 @@ function NotificationBell() {
   );
 }
 
-// ── User Avatar ───────────────────────────────────────────────
+// ── User Menu ─────────────────────────────────────────────────
 
-function UserAvatar() {
+function UserMenu() {
+  const [open, setOpen] = React.useState(false);
+  const ref = React.useRef<HTMLDivElement>(null);
+
+  // Fechar ao clicar fora
+  React.useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    }
+    if (open) document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [open]);
+
+  // Fechar com Escape
+  React.useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") setOpen(false);
+    }
+    if (open) document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [open]);
+
   return (
-    <button
-      aria-label="Perfil do usuário"
-      className={cn(
-        "flex h-7 w-7 items-center justify-center rounded-full text-[11px] font-semibold",
-        "bg-gradient-to-br from-blue-500 to-violet-600 text-white",
-        "ring-2 ring-border transition-all hover:ring-primary/40"
+    <div ref={ref} className="relative">
+      {/* Avatar trigger */}
+      <button
+        onClick={() => setOpen((v) => !v)}
+        aria-label="Menu do usuário"
+        aria-expanded={open}
+        aria-haspopup="menu"
+        className={cn(
+          "flex items-center gap-1.5 rounded-lg px-1.5 py-1",
+          "transition-colors hover:bg-secondary",
+          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
+        )}
+      >
+        <div className={cn(
+          "flex h-7 w-7 items-center justify-center rounded-full text-[11px] font-semibold",
+          "bg-gradient-to-br from-blue-500 to-violet-600 text-white",
+          "ring-2 ring-border"
+        )}>
+          B
+        </div>
+        <ChevronDown className={cn(
+          "hidden sm:block h-3 w-3 text-muted-foreground transition-transform duration-150",
+          open && "rotate-180"
+        )} />
+      </button>
+
+      {/* Dropdown */}
+      {open && (
+        <div
+          role="menu"
+          className={cn(
+            "absolute right-0 top-full mt-2 z-50",
+            "w-52 rounded-xl border border-border bg-card",
+            "shadow-lg shadow-black/10",
+            "py-1 overflow-hidden",
+            "animate-in fade-in-0 zoom-in-95 slide-in-from-top-2 duration-150"
+          )}
+        >
+          {/* User info */}
+          <div className="px-3 py-2.5 border-b border-border">
+            <div className="flex items-center gap-2.5">
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-violet-600 text-xs font-bold text-white">
+                B
+              </div>
+              <div className="min-w-0">
+                <p className="text-[13px] font-semibold text-foreground truncate">
+                  Bernardo G.
+                </p>
+                <p className="text-[11px] text-muted-foreground truncate">
+                  bgarios@gmail.com
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Menu items */}
+          <div className="py-1">
+            <button
+              role="menuitem"
+              className={cn(
+                "flex w-full items-center gap-2.5 px-3 py-2",
+                "text-[13px] text-muted-foreground",
+                "transition-colors hover:bg-secondary hover:text-foreground"
+              )}
+              onClick={() => setOpen(false)}
+            >
+              <User className="h-3.5 w-3.5 shrink-0" />
+              <span>Meu perfil</span>
+            </button>
+          </div>
+
+          {/* Divider + Logout */}
+          <div className="border-t border-border py-1">
+            <form action={logout}>
+              <button
+                type="submit"
+                role="menuitem"
+                className={cn(
+                  "flex w-full items-center gap-2.5 px-3 py-2",
+                  "text-[13px] text-destructive",
+                  "transition-colors hover:bg-destructive/10"
+                )}
+              >
+                <LogOut className="h-3.5 w-3.5 shrink-0" />
+                <span>Sair</span>
+              </button>
+            </form>
+          </div>
+        </div>
       )}
-    >
-      B
-    </button>
+    </div>
   );
 }
 
@@ -174,16 +279,14 @@ export function Header({ sidebarCollapsed, onSidebarToggle }: HeaderProps) {
       <div className="flex items-center gap-1.5 ml-auto">
         <SearchTrigger />
 
-        {/* Divider */}
         <div className="mx-1 hidden sm:block h-4 w-px bg-border" />
 
         <NotificationBell />
         <ThemeToggle />
 
-        {/* Divider */}
         <div className="mx-1 h-4 w-px bg-border" />
 
-        <UserAvatar />
+        <UserMenu />
       </div>
     </header>
   );
