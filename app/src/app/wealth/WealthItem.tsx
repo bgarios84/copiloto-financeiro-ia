@@ -1,0 +1,191 @@
+"use client";
+
+/**
+ * WealthItem — Sprint 6.1
+ *
+ * Card de ativo patrimonial com:
+ *   - Ícone + tipo + nome
+ *   - Valor atual destacado
+ *   - Valor de aquisição + valorização (se disponível)
+ *   - Custodiante
+ *   - Hover: editar + excluir (confirmação 4s)
+ */
+
+import * as React from "react";
+import { Pencil, Trash2, TrendingUp, TrendingDown, Minus } from "lucide-react";
+import { cn, formatCurrency } from "@/lib/utils";
+import {
+  ASSET_TYPE_LABELS,
+  ASSET_TYPE_ICONS,
+  ASSET_TYPE_COLORS,
+} from "@/types/manual-asset";
+import type { ManualAsset } from "@/types/manual-asset";
+
+// ── Props ──────────────────────────────────────────────────────────────────────
+
+interface WealthItemProps {
+  asset:    ManualAsset;
+  onEdit:   (asset: ManualAsset) => void;
+  onDelete: (id: string) => Promise<void>;
+  deleting: boolean;
+}
+
+// ── Component ──────────────────────────────────────────────────────────────────
+
+export function WealthItem({ asset, onEdit, onDelete, deleting }: WealthItemProps) {
+  const [confirmDelete, setConfirmDelete] = React.useState(false);
+  const timerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // ── Valorização ────────────────────────────────────────────────────────────
+
+  const hasGain =
+    asset.acquisition_value !== null && asset.acquisition_value > 0;
+  const gainAmount = hasGain
+    ? asset.current_value - asset.acquisition_value!
+    : null;
+  const gainPct = hasGain
+    ? ((asset.current_value - asset.acquisition_value!) / asset.acquisition_value!) * 100
+    : null;
+
+  // ── Delete confirm ─────────────────────────────────────────────────────────
+
+  function handleDeleteClick() {
+    if (!confirmDelete) {
+      setConfirmDelete(true);
+      timerRef.current = setTimeout(() => setConfirmDelete(false), 4000);
+    } else {
+      if (timerRef.current) clearTimeout(timerRef.current);
+      setConfirmDelete(false);
+      void onDelete(asset.id);
+    }
+  }
+
+  React.useEffect(() => {
+    return () => { if (timerRef.current) clearTimeout(timerRef.current); };
+  }, []);
+
+  const color  = ASSET_TYPE_COLORS[asset.asset_type];
+  const icon   = ASSET_TYPE_ICONS[asset.asset_type];
+  const label  = ASSET_TYPE_LABELS[asset.asset_type];
+
+  // ── Render ─────────────────────────────────────────────────────────────────
+
+  return (
+    <div className={cn(
+      "group relative rounded-xl border border-border bg-card p-4",
+      "transition-all hover:border-border/80 hover:shadow-sm",
+      deleting && "opacity-50 pointer-events-none"
+    )}>
+      {/* Header row */}
+      <div className="flex items-start gap-3">
+        {/* Icon */}
+        <div
+          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-lg"
+          style={{ backgroundColor: `${color}20` }}
+        >
+          {icon}
+        </div>
+
+        {/* Name + type */}
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-[14px] font-semibold text-foreground">{asset.name}</p>
+          <div className="mt-0.5 flex items-center gap-1.5">
+            <span
+              className="inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold"
+              style={{ backgroundColor: `${color}15`, color }}
+            >
+              {label}
+            </span>
+            {asset.custodian && (
+              <span className="text-[11px] text-muted-foreground truncate">
+                · {asset.custodian}
+              </span>
+            )}
+          </div>
+        </div>
+
+        {/* Actions */}
+        <div className={cn(
+          "flex shrink-0 items-center gap-1",
+          "opacity-0 group-hover:opacity-100 transition-opacity"
+        )}>
+          <button
+            onClick={() => onEdit(asset)}
+            className="flex h-7 w-7 items-center justify-center rounded-lg text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
+            title="Editar"
+          >
+            <Pencil className="h-3.5 w-3.5" />
+          </button>
+          <button
+            onClick={handleDeleteClick}
+            className={cn(
+              "flex h-7 w-7 items-center justify-center rounded-lg transition-colors",
+              confirmDelete
+                ? "bg-rose-500/15 text-rose-500 hover:bg-rose-500/25"
+                : "text-muted-foreground hover:bg-rose-500/10 hover:text-rose-500"
+            )}
+            title={confirmDelete ? "Clique novamente para confirmar" : "Excluir"}
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      </div>
+
+      {/* Value row */}
+      <div className="mt-3 flex items-end justify-between gap-3">
+        <div>
+          <p className="text-[11px] text-muted-foreground">Valor atual</p>
+          <p className="text-[20px] font-bold tabular-nums text-foreground">
+            {formatCurrency(asset.current_value)}
+          </p>
+          {asset.currency !== "BRL" && (
+            <p className="text-[10px] text-muted-foreground">{asset.currency}</p>
+          )}
+        </div>
+
+        {/* Gain/loss */}
+        {gainAmount !== null && gainPct !== null && (
+          <div className="text-right">
+            <p className="text-[11px] text-muted-foreground">Desde aquisição</p>
+            <div className={cn(
+              "flex items-center gap-1 justify-end text-[13px] font-semibold tabular-nums",
+              gainAmount > 0
+                ? "text-emerald-600 dark:text-emerald-400"
+                : gainAmount < 0
+                ? "text-rose-600 dark:text-rose-500"
+                : "text-muted-foreground"
+            )}>
+              {gainAmount > 0 ? (
+                <TrendingUp className="h-3.5 w-3.5" />
+              ) : gainAmount < 0 ? (
+                <TrendingDown className="h-3.5 w-3.5" />
+              ) : (
+                <Minus className="h-3.5 w-3.5" />
+              )}
+              {gainAmount >= 0 ? "+" : ""}
+              {formatCurrency(gainAmount)}
+              <span className="text-[11px] font-medium">
+                ({gainPct >= 0 ? "+" : ""}{gainPct.toFixed(1)}%)
+              </span>
+            </div>
+            <p className="text-[10px] text-muted-foreground">
+              Custo: {formatCurrency(asset.acquisition_value!)}
+            </p>
+          </div>
+        )}
+      </div>
+
+      {/* Notes */}
+      {asset.notes && (
+        <p className="mt-2 text-[11px] text-muted-foreground line-clamp-2">{asset.notes}</p>
+      )}
+
+      {/* Confirm delete tooltip */}
+      {confirmDelete && (
+        <div className="absolute right-3 -top-7 z-10 rounded-md bg-rose-500 px-2 py-1 text-[10px] font-medium text-white shadow-lg">
+          Clique novamente para confirmar
+        </div>
+      )}
+    </div>
+  );
+}

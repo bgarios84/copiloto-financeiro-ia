@@ -44,7 +44,7 @@ const NAV_MAIN: NavItem[] = [
   { label: "Transacoes",    href: "/transactions", icon: ArrowLeftRight  },
   { label: "Orcamentos",    href: "/budgets",      icon: PiggyBank       },
   { label: "Investimentos", href: "/investments",  icon: TrendingUp      },
-  { label: "Patrimonio",    href: "/portfolio",    icon: PieChart        },
+  { label: "Patrimonio",    href: "/wealth",       icon: PieChart        },
   { label: "Metas",         href: "/budget",       icon: Target          },
   { label: "Relatorios",    href: "/reports",      icon: FileText        },
 ];
