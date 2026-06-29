@@ -1,18 +1,17 @@
 "use client";
 
 /**
- * WealthItem — Sprint 6.1
+ * WealthItem — Sprint 6.3
  *
- * Card de ativo patrimonial com:
- *   - Ícone + tipo + nome
- *   - Valor atual destacado
- *   - Valor de aquisição + valorização (se disponível)
- *   - Custodiante
- *   - Hover: editar + excluir (confirmação 4s)
+ * Card de ativo patrimonial com suporte a multi-moeda:
+ *   - Valor original na moeda do ativo
+ *   - Equivalente em BRL quando currency !== BRL
+ *   - Aviso "sem cotação" quando taxa indisponível
+ *   - Valorização (current vs acquisition) em moeda original
  */
 
 import * as React from "react";
-import { Pencil, Trash2, TrendingUp, TrendingDown, Minus } from "lucide-react";
+import { Pencil, Trash2, TrendingUp, TrendingDown, Minus, AlertTriangle } from "lucide-react";
 import { cn, formatCurrency } from "@/lib/utils";
 import {
   ASSET_TYPE_LABELS,
@@ -20,11 +19,30 @@ import {
   ASSET_TYPE_COLORS,
 } from "@/types/manual-asset";
 import type { ManualAsset } from "@/types/manual-asset";
+import type { FxRateMap } from "@/types/fx-rate";
+import { convertToBRL } from "@/lib/fx-rate";
+
+// ── Currency formatter ─────────────────────────────────────────────────────────
+
+function formatInCurrency(amount: number, currency: string): string {
+  try {
+    return new Intl.NumberFormat("pt-BR", {
+      style:    "currency",
+      currency,
+      minimumFractionDigits: currency === "BTC" || currency === "ETH" ? 6 : 2,
+      maximumFractionDigits: currency === "BTC" || currency === "ETH" ? 6 : 2,
+    }).format(amount);
+  } catch {
+    // fallback para moedas não suportadas pelo Intl (ex: BTC, ETH)
+    return `${currency} ${amount.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 6 })}`;
+  }
+}
 
 // ── Props ──────────────────────────────────────────────────────────────────────
 
 interface WealthItemProps {
   asset:    ManualAsset;
+  rateMap:  FxRateMap;
   onEdit:   (asset: ManualAsset) => void;
   onDelete: (id: string) => Promise<void>;
   deleting: boolean;
@@ -32,18 +50,21 @@ interface WealthItemProps {
 
 // ── Component ──────────────────────────────────────────────────────────────────
 
-export function WealthItem({ asset, onEdit, onDelete, deleting }: WealthItemProps) {
+export function WealthItem({ asset, rateMap, onEdit, onDelete, deleting }: WealthItemProps) {
   const [confirmDelete, setConfirmDelete] = React.useState(false);
   const timerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // ── Valorização ────────────────────────────────────────────────────────────
+  // ── FX conversion ──────────────────────────────────────────────────────────
 
-  const hasGain =
-    asset.acquisition_value !== null && asset.acquisition_value > 0;
-  const gainAmount = hasGain
-    ? asset.current_value - asset.acquisition_value!
-    : null;
-  const gainPct = hasGain
+  const isForeign     = asset.currency !== "BRL";
+  const valueBRL      = convertToBRL(asset.current_value, asset.currency, rateMap);
+  const hasFxRate     = !isForeign || valueBRL !== null;
+
+  // ── Valorização (em moeda original) ───────────────────────────────────────
+
+  const hasGain = asset.acquisition_value !== null && asset.acquisition_value > 0;
+  const gainAmount = hasGain ? asset.current_value - asset.acquisition_value! : null;
+  const gainPct    = hasGain
     ? ((asset.current_value - asset.acquisition_value!) / asset.acquisition_value!) * 100
     : null;
 
@@ -64,9 +85,9 @@ export function WealthItem({ asset, onEdit, onDelete, deleting }: WealthItemProp
     return () => { if (timerRef.current) clearTimeout(timerRef.current); };
   }, []);
 
-  const color  = ASSET_TYPE_COLORS[asset.asset_type];
-  const icon   = ASSET_TYPE_ICONS[asset.asset_type];
-  const label  = ASSET_TYPE_LABELS[asset.asset_type];
+  const color = ASSET_TYPE_COLORS[asset.asset_type];
+  const icon  = ASSET_TYPE_ICONS[asset.asset_type];
+  const label = ASSET_TYPE_LABELS[asset.asset_type];
 
   // ── Render ─────────────────────────────────────────────────────────────────
 
@@ -89,7 +110,7 @@ export function WealthItem({ asset, onEdit, onDelete, deleting }: WealthItemProp
         {/* Name + type */}
         <div className="min-w-0 flex-1">
           <p className="truncate text-[14px] font-semibold text-foreground">{asset.name}</p>
-          <div className="mt-0.5 flex items-center gap-1.5">
+          <div className="mt-0.5 flex items-center gap-1.5 flex-wrap">
             <span
               className="inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold"
               style={{ backgroundColor: `${color}15`, color }}
@@ -99,6 +120,15 @@ export function WealthItem({ asset, onEdit, onDelete, deleting }: WealthItemProp
             {asset.custodian && (
               <span className="text-[11px] text-muted-foreground truncate">
                 · {asset.custodian}
+              </span>
+            )}
+            {isForeign && !hasFxRate && (
+              <span
+                className="inline-flex items-center gap-0.5 rounded-full bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-medium text-amber-600 dark:text-amber-400"
+                title="Taxa de câmbio indisponível — valor não incluído no total em BRL"
+              >
+                <AlertTriangle className="h-2.5 w-2.5" />
+                sem cotação
               </span>
             )}
           </div>
@@ -131,19 +161,33 @@ export function WealthItem({ asset, onEdit, onDelete, deleting }: WealthItemProp
         </div>
       </div>
 
-      {/* Value row */}
+      {/* Value block */}
       <div className="mt-3 flex items-end justify-between gap-3">
         <div>
-          <p className="text-[11px] text-muted-foreground">Valor atual</p>
-          <p className="text-[20px] font-bold tabular-nums text-foreground">
-            {formatCurrency(asset.current_value)}
+          {/* Primary value */}
+          <p className="text-[11px] text-muted-foreground">
+            Valor atual {isForeign && <span className="font-medium text-foreground/60">({asset.currency})</span>}
           </p>
-          {asset.currency !== "BRL" && (
-            <p className="text-[10px] text-muted-foreground">{asset.currency}</p>
+          <p className="text-[20px] font-bold tabular-nums text-foreground">
+            {isForeign
+              ? formatInCurrency(asset.current_value, asset.currency)
+              : formatCurrency(asset.current_value)}
+          </p>
+
+          {/* BRL equivalent for foreign assets */}
+          {isForeign && (
+            <p className={cn(
+              "mt-0.5 text-[12px] tabular-nums",
+              hasFxRate ? "font-semibold text-muted-foreground" : "text-amber-600 dark:text-amber-400"
+            )}>
+              {hasFxRate && valueBRL !== null
+                ? `≈ ${formatCurrency(valueBRL)}`
+                : "≈ BRL sem cotação"}
+            </p>
           )}
         </div>
 
-        {/* Gain/loss */}
+        {/* Gain/loss (in original currency) */}
         {gainAmount !== null && gainPct !== null && (
           <div className="text-right">
             <p className="text-[11px] text-muted-foreground">Desde aquisição</p>
@@ -155,21 +199,23 @@ export function WealthItem({ asset, onEdit, onDelete, deleting }: WealthItemProp
                 ? "text-rose-600 dark:text-rose-500"
                 : "text-muted-foreground"
             )}>
-              {gainAmount > 0 ? (
-                <TrendingUp className="h-3.5 w-3.5" />
-              ) : gainAmount < 0 ? (
-                <TrendingDown className="h-3.5 w-3.5" />
-              ) : (
-                <Minus className="h-3.5 w-3.5" />
-              )}
+              {gainAmount > 0
+                ? <TrendingUp  className="h-3.5 w-3.5" />
+                : gainAmount < 0
+                ? <TrendingDown className="h-3.5 w-3.5" />
+                : <Minus       className="h-3.5 w-3.5" />}
               {gainAmount >= 0 ? "+" : ""}
-              {formatCurrency(gainAmount)}
+              {isForeign
+                ? formatInCurrency(gainAmount, asset.currency)
+                : formatCurrency(gainAmount)}
               <span className="text-[11px] font-medium">
                 ({gainPct >= 0 ? "+" : ""}{gainPct.toFixed(1)}%)
               </span>
             </div>
             <p className="text-[10px] text-muted-foreground">
-              Custo: {formatCurrency(asset.acquisition_value!)}
+              Custo: {isForeign
+                ? formatInCurrency(asset.acquisition_value!, asset.currency)
+                : formatCurrency(asset.acquisition_value!)}
             </p>
           </div>
         )}

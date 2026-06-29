@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { requireAuth } from "@/lib/supabase/require-auth";
 import { getManualAssets } from "@/services/manual-asset";
+import { getLatestRatesForBRL } from "@/services/fx-rate";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { WealthClient } from "./WealthClient";
 
@@ -12,18 +13,24 @@ export const metadata: Metadata = {
  * /wealth — Server Component
  *
  * 1. requireAuth() — redireciona para /login se não autenticado
- * 2. getManualAssets() — busca ativos manuais do usuário
+ * 2. Fetch paralelo: ativos manuais + taxas de câmbio mais recentes
  * 3. Passa dados ao WealthClient (Client Component)
  */
 export default async function WealthPage() {
   await requireAuth();
-  const result = await getManualAssets();
+
+  const [assetsResult, ratesResult] = await Promise.all([
+    getManualAssets(),
+    getLatestRatesForBRL(),
+  ]);
 
   return (
     <AppLayout>
       <WealthClient
-        initialAssets={result.data ?? []}
-        initialError={result.error}
+        initialAssets={assetsResult.data ?? []}
+        initialError={assetsResult.error}
+        rateMap={ratesResult.data ?? { BRL: 1 }}
+        rateError={ratesResult.error}
       />
     </AppLayout>
   );
