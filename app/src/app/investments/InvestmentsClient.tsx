@@ -2,15 +2,7 @@
 
 /**
  * InvestmentsClient — shell client do módulo /investments
- * Sprint 6.4
- *
- * Responsabilidades:
- *   - Estado das posições (otimistic updates)
- *   - Consolidação em BRL via consolidateInBRL()
- *   - Cards de resumo: total BRL, nº posições, maior posição, classes
- *   - Barra de alocação por classe de ativo
- *   - Aviso de moedas sem cotação
- *   - Orquestração: InvestmentItem + InvestmentFormModal
+ * Sprint 6.4.1 — layout tabela compacta
  */
 
 import { useState, useMemo } from "react";
@@ -64,10 +56,8 @@ export function InvestmentsClient({
     return consolidateInBRL(items, rateMap);
   }, [positions, rateMap]);
 
-  /** Alocação por classe de ativo em BRL */
   const byClass = useMemo((): PositionByClass[] => {
     const map: Partial<Record<AssetClass, { totalBRL: number; count: number }>> = {};
-
     for (const p of positions) {
       if (p.current_value === null) continue;
       const brl = convertToBRL(p.current_value, p.currency, rateMap);
@@ -77,9 +67,7 @@ export function InvestmentsClient({
       map[cls]!.totalBRL += brl;
       map[cls]!.count    += 1;
     }
-
     const total = Object.values(map).reduce((s, v) => s + (v?.totalBRL ?? 0), 0);
-
     return (Object.entries(map) as [AssetClass, { totalBRL: number; count: number }][])
       .map(([cls, v]) => ({
         asset_class: cls,
@@ -91,7 +79,6 @@ export function InvestmentsClient({
   }, [positions, rateMap]);
 
   const topPosition = useMemo(() => {
-    if (positions.length === 0) return null;
     return positions
       .filter(p => p.current_value !== null)
       .sort((a, b) => {
@@ -131,7 +118,7 @@ export function InvestmentsClient({
   // ── Render ────────────────────────────────────────────────────────────────────
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -207,20 +194,15 @@ export function InvestmentsClient({
             <TrendingUp className="w-4 h-4" />
             Alocação por classe
           </p>
-          {/* Stacked bar */}
-          <div className="flex h-4 rounded-full overflow-hidden gap-0.5 mb-3">
+          <div className="flex h-3 rounded-full overflow-hidden gap-0.5 mb-3">
             {byClass.map(c => (
               <div
                 key={c.asset_class}
-                style={{
-                  width:           `${c.percentage}%`,
-                  backgroundColor: ASSET_CLASS_COLORS[c.asset_class],
-                }}
+                style={{ width: `${c.percentage}%`, backgroundColor: ASSET_CLASS_COLORS[c.asset_class] }}
                 title={`${ASSET_CLASS_LABELS[c.asset_class]}: ${c.percentage.toFixed(1)}%`}
               />
             ))}
           </div>
-          {/* Legend */}
           <div className="flex flex-wrap gap-x-4 gap-y-1.5">
             {byClass.map(c => (
               <div key={c.asset_class} className="flex items-center gap-1.5 text-xs">
@@ -231,19 +213,17 @@ export function InvestmentsClient({
                 <span className="text-zinc-600 dark:text-zinc-400">
                   {ASSET_CLASS_ICONS[c.asset_class]} {ASSET_CLASS_LABELS[c.asset_class]}
                 </span>
-                <span className="font-medium text-zinc-800 dark:text-zinc-200">
+                <span className="font-semibold text-zinc-800 dark:text-zinc-200">
                   {c.percentage.toFixed(1)}%
                 </span>
-                <span className="text-zinc-400">
-                  {formatBRL(c.totalBRL)}
-                </span>
+                <span className="text-zinc-400">{formatBRL(c.totalBRL)}</span>
               </div>
             ))}
           </div>
         </div>
       )}
 
-      {/* Positions list */}
+      {/* Positions table */}
       {positions.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-16 text-center">
           <span className="text-5xl mb-4">📈</span>
@@ -258,16 +238,65 @@ export function InvestmentsClient({
           </button>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {positions.map(p => (
-            <InvestmentItem
-              key={p.id}
-              position={p}
-              rateMap={rateMap}
-              onEdit={openEdit}
-              onDelete={handleDelete}
-            />
-          ))}
+        <div className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              {/* Desktop header */}
+              <thead className="hidden md:table-header-group">
+                <tr className="border-b border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-800/50">
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">
+                    Ativo
+                  </th>
+                  <th className="px-3 py-3 text-left text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider hidden lg:table-cell">
+                    Classe
+                  </th>
+                  <th className="px-3 py-3 text-right text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider hidden lg:table-cell">
+                    Qtd
+                  </th>
+                  <th className="px-3 py-3 text-right text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider hidden xl:table-cell">
+                    Preço Médio
+                  </th>
+                  <th className="px-3 py-3 text-right text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider hidden xl:table-cell">
+                    Preço Atual
+                  </th>
+                  <th className="px-3 py-3 text-right text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">
+                    Valor Atual
+                  </th>
+                  <th className="px-3 py-3 text-center text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">
+                    Moeda
+                  </th>
+                  <th className="px-3 py-3 text-right text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">
+                    Resultado
+                  </th>
+                  <th className="px-3 py-3 text-left text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider hidden xl:table-cell">
+                    Instituição
+                  </th>
+                  <th className="px-3 py-3 w-20" />
+                </tr>
+              </thead>
+
+              {/* Mobile header */}
+              <thead className="md:hidden">
+                <tr className="border-b border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-800/50">
+                  <th className="px-4 py-2.5 text-left text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">
+                    {positions.length} {positions.length === 1 ? "posição" : "posições"}
+                  </th>
+                </tr>
+              </thead>
+
+              <tbody>
+                {positions.map(p => (
+                  <InvestmentItem
+                    key={p.id}
+                    position={p}
+                    rateMap={rateMap}
+                    onEdit={openEdit}
+                    onDelete={handleDelete}
+                  />
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 
