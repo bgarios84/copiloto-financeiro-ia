@@ -19,7 +19,7 @@ import {
   ChevronsUpDown,
   Building2,
   Calendar,
-  Wallet,
+  CreditCard,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -37,23 +37,24 @@ interface NavItem {
 }
 
 const NAV_MAIN: NavItem[] = [
-  { label: "Visão Geral",   href: "/dashboard",    icon: LayoutDashboard },
+  { label: "Visao Geral",   href: "/dashboard",    icon: LayoutDashboard },
   { label: "Contas",        href: "/accounts",     icon: Building2       },
-  { label: "Transações",    href: "/transactions", icon: ArrowLeftRight  },
+  { label: "Cartoes",       href: "/credit-cards", icon: CreditCard      },
+  { label: "Transacoes",    href: "/transactions", icon: ArrowLeftRight  },
   { label: "Investimentos", href: "/investments",  icon: TrendingUp      },
-  { label: "Patrimônio",    href: "/portfolio",    icon: PieChart        },
+  { label: "Patrimonio",    href: "/portfolio",    icon: PieChart        },
   { label: "Metas",         href: "/budget",       icon: Target          },
-  { label: "Relatórios",    href: "/reports",      icon: FileText        },
+  { label: "Relatorios",    href: "/reports",      icon: FileText        },
 ];
 
 const NAV_AI: NavItem[] = [
-  { label: "Análises com IA", href: "/ai",          icon: Bot,      isNew: true },
-  { label: "Planejamento",    href: "/planning",    icon: Calendar, badge: "Novo" },
-  { label: "Alertas",         href: "/alerts",      icon: Bell,     badge: "3"   },
+  { label: "Analises com IA", href: "/ai",       icon: Bot,      isNew: true },
+  { label: "Planejamento",    href: "/planning", icon: Calendar, badge: "Novo" },
+  { label: "Alertas",         href: "/alerts",   icon: Bell,     badge: "3"   },
 ];
 
 const NAV_SYSTEM: NavItem[] = [
-  { label: "Configurações", href: "/settings", icon: Settings },
+  { label: "Configuracoes", href: "/settings", icon: Settings },
 ];
 
 // ── Props ─────────────────────────────────────────────────────
@@ -78,7 +79,6 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
           "transition-[width] duration-300 ease-in-out overflow-hidden"
         )}
       >
-        {/* ── Logo ── */}
         <div className={cn(
           "flex h-14 shrink-0 items-center border-b border-sidebar-border",
           collapsed ? "justify-center px-0" : "justify-between px-4"
@@ -93,12 +93,11 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
                   Copiloto Financeiro
                 </span>
                 <span className="text-[10px] text-sidebar-muted tracking-wide uppercase">
-                  IA · Beta
+                  IA Beta
                 </span>
               </div>
             )}
           </Link>
-
           {!collapsed && (
             <button
               onClick={onToggle}
@@ -127,16 +126,14 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
           )}
         </div>
 
-        {/* ── Navigation ── */}
         <ScrollArea className="flex-1 py-3">
           <div className="flex flex-col gap-5 px-2">
             <NavGroup label="Menu"         items={NAV_MAIN}   collapsed={collapsed} pathname={pathname} />
-            <NavGroup label="Inteligência" items={NAV_AI}     collapsed={collapsed} pathname={pathname} />
+            <NavGroup label="Inteligencia" items={NAV_AI}     collapsed={collapsed} pathname={pathname} />
             <NavGroup label="Sistema"      items={NAV_SYSTEM} collapsed={collapsed} pathname={pathname} />
           </div>
         </ScrollArea>
 
-        {/* ── Premium Card ── */}
         {!collapsed && (
           <div className="shrink-0 px-2 pb-2">
             <div className={cn(
@@ -163,7 +160,6 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
           </div>
         )}
 
-        {/* ── User Profile ── */}
         <div className={cn(
           "shrink-0 border-t border-sidebar-border",
           collapsed ? "p-2" : "p-3"
@@ -260,7 +256,6 @@ function NavLink({
       {isActive && !collapsed && (
         <span className="absolute left-0 top-1/2 -translate-y-1/2 h-4 w-0.5 rounded-full bg-blue-400" />
       )}
-
       <Icon className={cn(
         "shrink-0 transition-colors",
         collapsed ? "h-4 w-4" : "h-3.5 w-3.5",
@@ -268,15 +263,12 @@ function NavLink({
           ? "text-blue-400"
           : "text-sidebar-foreground/40 group-hover:text-sidebar-foreground/70"
       )} />
-
       {!collapsed && <span className="truncate">{item.label}</span>}
-
       {!collapsed && item.badge && (
-        <span className="ml-auto flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-blue-500/20 px-1.5 text-[10px] font-semibold text-blue-400">
+        <span className="ml-auto flex h-4 min-w-4 items-center justify-center rounded-full bg-blue-500/20 px-1.5 text-[10px] font-semibold text-blue-400">
           {item.badge}
         </span>
       )}
-
       {!collapsed && item.isNew && (
         <span className="ml-auto rounded-full bg-violet-500/20 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-violet-400">
           Novo
