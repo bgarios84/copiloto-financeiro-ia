@@ -2,15 +2,19 @@
 
 /**
  * InvestmentsClient — shell client do módulo /investments
- * Sprint 6.4.1 — layout tabela compacta
+ * Sprint 7.1   — cotações B3 aplicadas na consolidação
+ * Sprint 7.1.1 — dividendMap repassado para cada InvestmentItem
  */
 
 import { useState, useMemo } from "react";
 import { Plus, AlertTriangle, TrendingUp } from "lucide-react";
 import type { InvestmentPosition, PositionByClass, AssetClass } from "@/types/investment";
 import { ASSET_CLASS_LABELS, ASSET_CLASS_ICONS, ASSET_CLASS_COLORS } from "@/types/investment";
-import type { FxRateMap }   from "@/types/fx-rate";
+import type { FxRateMap }    from "@/types/fx-rate";
+import type { B3QuoteMap }   from "@/types/b3-market";
+import type { DividendMap }  from "@/types/b3-dividend";
 import { consolidateInBRL, convertToBRL } from "@/lib/fx-rate";
+import { effectiveCurrentValue } from "@/lib/b3-market";
 import { deleteInvestmentPosition } from "@/services/investment";
 import { InvestmentItem }       from "./InvestmentItem";
 import { InvestmentFormModal }  from "./InvestmentFormModal";
@@ -32,6 +36,9 @@ interface Props {
   initialError:     string | null;
   rateMap:          FxRateMap;
   rateError:        string | null;
+  b3QuoteMap:       B3QuoteMap;
+  b3QuoteError:     string | null;
+  dividendMap:      DividendMap;
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
@@ -41,6 +48,9 @@ export function InvestmentsClient({
   initialError,
   rateMap,
   rateError,
+  b3QuoteMap,
+  b3QuoteError,
+  dividendMap,
 }: Props) {
   const [positions, setPositions] = useState<InvestmentPosition[]>(initialPositions);
   const [modalOpen, setModalOpen] = useState(false);
@@ -51,16 +61,20 @@ export function InvestmentsClient({
 
   const { totalBRL, missing } = useMemo(() => {
     const items = positions
-      .filter(p => p.current_value !== null)
-      .map(p => ({ amount: p.current_value!, currency: p.currency }));
+      .map(p => {
+        const val = effectiveCurrentValue(p, b3QuoteMap);
+        return val !== null ? { amount: val, currency: p.currency } : null;
+      })
+      .filter((x): x is { amount: number; currency: string } => x !== null);
     return consolidateInBRL(items, rateMap);
-  }, [positions, rateMap]);
+  }, [positions, rateMap, b3QuoteMap]);
 
   const byClass = useMemo((): PositionByClass[] => {
     const map: Partial<Record<AssetClass, { totalBRL: number; count: number }>> = {};
     for (const p of positions) {
-      if (p.current_value === null) continue;
-      const brl = convertToBRL(p.current_value, p.currency, rateMap);
+      const val = effectiveCurrentValue(p, b3QuoteMap);
+      if (val === null) continue;
+      const brl = convertToBRL(val, p.currency, rateMap);
       if (brl === null) continue;
       const cls = p.asset_class;
       if (!map[cls]) map[cls] = { totalBRL: 0, count: 0 };
@@ -76,17 +90,16 @@ export function InvestmentsClient({
         percentage:  total > 0 ? (v.totalBRL / total) * 100 : 0,
       }))
       .sort((a, b) => b.totalBRL - a.totalBRL);
-  }, [positions, rateMap]);
+  }, [positions, rateMap, b3QuoteMap]);
 
   const topPosition = useMemo(() => {
     return positions
-      .filter(p => p.current_value !== null)
-      .sort((a, b) => {
-        const aB = convertToBRL(a.current_value!, a.currency, rateMap) ?? 0;
-        const bB = convertToBRL(b.current_value!, b.currency, rateMap) ?? 0;
-        return bB - aB;
-      })[0] ?? null;
-  }, [positions, rateMap]);
+      .map(p => {
+        const val = effectiveCurrentValue(p, b3QuoteMap);
+        return { p, brl: val !== null ? (convertToBRL(val, p.currency, rateMap) ?? 0) : 0 };
+      })
+      .sort((a, b) => b.brl - a.brl)[0]?.p ?? null;
+  }, [positions, rateMap, b3QuoteMap]);
 
   // ── Handlers ─────────────────────────────────────────────────────────────────
 
@@ -145,7 +158,15 @@ export function InvestmentsClient({
         </div>
       )}
 
-      {/* Missing currencies warning */}
+      {/* B3 quote error (non-blocking) */}
+      {b3QuoteError && (
+        <div className="flex items-center gap-2 p-3 rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 text-sm text-amber-700 dark:text-amber-400">
+          <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+          <span>Cotações B3 indisponíveis: {b3QuoteError}. Usando preços manuais.</span>
+        </div>
+      )}
+
+      {/* Missing FX currencies warning */}
       {missing.length > 0 && (
         <div className="flex items-center gap-2 p-3 rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 text-sm text-amber-700 dark:text-amber-400">
           <AlertTriangle className="w-4 h-4 flex-shrink-0" />
@@ -244,34 +265,17 @@ export function InvestmentsClient({
               {/* Desktop header */}
               <thead className="hidden md:table-header-group">
                 <tr className="border-b border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-800/50">
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">
-                    Ativo
-                  </th>
-                  <th className="px-3 py-3 text-left text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider hidden lg:table-cell">
-                    Classe
-                  </th>
-                  <th className="px-3 py-3 text-right text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider hidden lg:table-cell">
-                    Qtd
-                  </th>
-                  <th className="px-3 py-3 text-right text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider hidden xl:table-cell">
-                    Preço Médio
-                  </th>
-                  <th className="px-3 py-3 text-right text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider hidden xl:table-cell">
-                    Preço Atual
-                  </th>
-                  <th className="px-3 py-3 text-right text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">
-                    Valor Atual
-                  </th>
-                  <th className="px-3 py-3 text-center text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">
-                    Moeda
-                  </th>
-                  <th className="px-3 py-3 text-right text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">
-                    Resultado
-                  </th>
-                  <th className="px-3 py-3 text-left text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider hidden xl:table-cell">
-                    Instituição
-                  </th>
-                  <th className="px-3 py-3 w-20" />
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">Ativo</th>
+                  <th className="px-3 py-3 text-left text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider hidden lg:table-cell">Classe</th>
+                  <th className="px-3 py-3 text-right text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider hidden lg:table-cell">Qtd</th>
+                  <th className="px-3 py-3 text-right text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider hidden xl:table-cell">Preço Médio</th>
+                  <th className="px-3 py-3 text-right text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider hidden xl:table-cell">Preço Atual</th>
+                  <th className="px-3 py-3 text-right text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">Valor Atual</th>
+                  <th className="px-3 py-3 text-right text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider hidden lg:table-cell">Proventos 12m</th>
+                  <th className="px-3 py-3 text-center text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">Moeda</th>
+                  <th className="px-3 py-3 text-right text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">Resultado</th>
+                  <th className="px-3 py-3 text-left text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider hidden xl:table-cell">Instituição</th>
+                  <th className="px-3 py-3 w-24" />
                 </tr>
               </thead>
 
@@ -290,6 +294,8 @@ export function InvestmentsClient({
                     key={p.id}
                     position={p}
                     rateMap={rateMap}
+                    b3QuoteMap={b3QuoteMap}
+                    dividendMap={dividendMap}
                     onEdit={openEdit}
                     onDelete={handleDelete}
                   />
