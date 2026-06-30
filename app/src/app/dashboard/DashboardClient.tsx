@@ -54,6 +54,8 @@ import type { HealthSnapshot }    from "@/lib/financial-health";
 import { FinancialHealthCard }    from "@/components/dashboard/FinancialHealthCard";
 import type { FinancialInsight }  from "@/lib/financial-insights";
 import { FinancialInsightsCard }  from "@/components/dashboard/FinancialInsightsCard";
+import type { OnboardingStatus }  from "@/services/onboarding";
+import { OnboardingChecklist }    from "@/components/dashboard/OnboardingChecklist";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -236,9 +238,10 @@ interface Props {
   radarInsights:      RadarInsight[];
   healthSnapshot:     HealthSnapshot | null;
   financialInsights:  FinancialInsight[];
+  onboarding:         OnboardingStatus | null;
 }
 
-export function DashboardClient({ data, error, radarInsights, healthSnapshot, financialInsights }: Props) {
+export function DashboardClient({ data, error, radarInsights, healthSnapshot, financialInsights, onboarding }: Props) {
   const { investments, manualAssets } = data.patrimonio;
   const hasData = data.summary !== null || investments.length > 0 || manualAssets.length > 0;
 
@@ -256,6 +259,11 @@ export function DashboardClient({ data, error, radarInsights, healthSnapshot, fi
 
       {/* 1. Hero */}
       <HeroCard data={data} m={m} />
+
+      {/* Onboarding — visível apenas se incompleto */}
+      {onboarding && !onboarding.isComplete && (
+        <OnboardingChecklist status={onboarding} />
+      )}
 
       {/* 2. KPI row */}
       <KPIRow data={data} m={m} />
@@ -1133,6 +1141,7 @@ function RadarCard({ className, insights }: { className?: string; insights: Rada
     </div>
   );
 }
+
 // ═══════════════════════════════════════════════════════════════
 // SHARED — Empty State
 // ═══════════════════════════════════════════════════════════════
