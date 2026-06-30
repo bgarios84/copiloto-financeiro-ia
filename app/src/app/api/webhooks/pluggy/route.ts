@@ -129,7 +129,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   const providerItemId = String(payload["itemId"] ?? payload["id"]    ?? "");
 
   if (!providerItemId) {
-    console.warn("[webhook/pluggy] Evento sem itemId:", eventType, payload);
+    console.warn("[webhook/pluggy] Evento sem itemId -- tipo:", eventType);
     return NextResponse.json({ ok: true, warning: "itemId ausente -- ignorado." });
   }
 

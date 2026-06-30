@@ -2,7 +2,9 @@
 
 /**
  * Open Finance -- Sync Center
- * Sprint 9.7 -- Central de Sincronizacao
+ * Sprint 9.7  -- Central de Sincronizacao
+ * Sprint 9.12 -- Reconexao de itens expirados/com erro
+ * Sprint 9.13 -- Painel de saude + mensagens de erro melhoradas
  */
 
 import * as React from "react";
@@ -33,6 +35,14 @@ const STATUS_CFG: Record<string, { label: string; dot: string; ring: string; tex
   disconnected:        { label: "Desconectado",    dot: "bg-zinc-500",                 ring: "border-zinc-700 bg-zinc-800/40",          text: "text-zinc-400"    },
   pending_user_action: { label: "Acao necessaria", dot: "bg-amber-400",                ring: "border-amber-500/25 bg-amber-500/8",      text: "text-amber-400"   },
   expired:             { label: "Expirado",        dot: "bg-amber-400",                ring: "border-amber-500/25 bg-amber-500/8",      text: "text-amber-400"   },
+};
+
+/** Mensagem de orientacao por status -- exibida no card quando nao "connected". */
+const STATUS_HINT: Record<string, string> = {
+  error:               "Erro ao acessar a instituicao. Clique em Reconectar para tentar novamente.",
+  expired:             "Sessao expirada. Clique em Reconectar para autenticar novamente com o banco.",
+  pending_user_action: "Acao necessaria (ex: MFA ou nova senha). Clique em Reconectar para completar.",
+  pending:             "Conexao pendente. Aguarde ou clique em Sincronizar.",
 };
 
 function StatusBadge({ status }: { status: string }) {
@@ -80,6 +90,91 @@ function formatDate(iso: string | null | undefined): string {
   });
 }
 
+// -- Painel de saude ---------------------------------------------------------
+
+interface HealthStats {
+  total:          number;
+  connected:      number;
+  attention:      number;  // error + expired + pending_user_action
+  lastSyncedAt:   string | null;
+  lastErrorMsg:   string | null;
+  nextSyncLabel:  string;
+}
+
+function computeHealth(conns: OFConnectionDetail[]): HealthStats {
+  const visible   = conns.filter((c) => c.status !== "disconnected");
+  const connected = visible.filter((c) => c.status === "connected").length;
+  const attention = visible.filter(
+    (c) => c.status === "error" || c.status === "expired" || c.status === "pending_user_action",
+  ).length;
+
+  // Ultima sync: maior last_synced_at entre todas
+  let lastSyncedAt: string | null = null;
+  for (const c of visible) {
+    if (c.last_synced_at && (!lastSyncedAt || c.last_synced_at > lastSyncedAt)) {
+      lastSyncedAt = c.last_synced_at as string;
+    }
+  }
+
+  // Ultimo erro: primeira mensagem de erro em conexoes com problema
+  let lastErrorMsg: string | null = null;
+  for (const c of visible) {
+    const msg = c.lastSyncLog?.error_message ?? (c.error_message as string | null | undefined) ?? null;
+    if (msg && (c.status === "error" || c.lastSyncLog?.status === "failed")) {
+      lastErrorMsg = msg;
+      break;
+    }
+  }
+
+  return {
+    total:         visible.length,
+    connected,
+    attention,
+    lastSyncedAt,
+    lastErrorMsg,
+    nextSyncLabel: "04:00 UTC (diario)",
+  };
+}
+
+function HealthPanel({ stats }: { stats: HealthStats }) {
+  if (stats.total === 0) return null;
+  return (
+    <div className="mb-6 rounded-xl border border-zinc-800 bg-zinc-900/60">
+      <div className="grid grid-cols-2 gap-px bg-zinc-800 sm:grid-cols-4">
+        {[
+          { label: "Total",         value: stats.total,
+            sub: stats.total === 1 ? "banco" : "bancos" },
+          { label: "Conectados",    value: stats.connected,
+            sub: `de ${stats.total}`,
+            hl: stats.connected === stats.total ? "text-emerald-400" : undefined },
+          { label: "Atencao",       value: stats.attention,
+            sub: "com problema",
+            hl: stats.attention > 0 ? "text-amber-400" : undefined },
+          { label: "Proxima sync",  value: stats.nextSyncLabel, sub: "cron automatico" },
+        ].map((s) => (
+          <div key={s.label} className="bg-zinc-900/80 px-4 py-3">
+            <p className="text-[10px] uppercase tracking-wide text-zinc-600">{s.label}</p>
+            <p className={`mt-0.5 text-[15px] font-semibold ${s.hl ?? "text-zinc-200"}`}>{s.value}</p>
+            <p className="text-[10px] text-zinc-600">{s.sub}</p>
+          </div>
+        ))}
+      </div>
+      <div className="grid grid-cols-1 gap-px bg-zinc-800 sm:grid-cols-2">
+        <div className="bg-zinc-900/80 px-4 py-2.5">
+          <p className="text-[10px] uppercase tracking-wide text-zinc-600">Ultima sync geral</p>
+          <p className="mt-0.5 text-[13px] font-medium text-zinc-300">{formatDate(stats.lastSyncedAt)}</p>
+        </div>
+        <div className="bg-zinc-900/80 px-4 py-2.5">
+          <p className="text-[10px] uppercase tracking-wide text-zinc-600">Ultimo erro</p>
+          <p className="mt-0.5 truncate text-[13px] font-medium text-zinc-300">
+            {stats.lastErrorMsg ?? "—"}
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // -- Componente principal -----------------------------------------------------
 
 interface Props {
@@ -114,6 +209,8 @@ export function OpenFinanceClient({ initialConnections, error }: Props) {
   const syncableConnections = activeConnections.filter(
     (c) => c.status !== "expired" && c.status !== "pending_user_action",
   );
+
+  const healthStats = React.useMemo(() => computeHealth(connections), [connections]);
 
   // Atualizar status de uma conexao localmente (otimista)
   function setConnStatus(id: string, status: string) {
@@ -199,7 +296,7 @@ export function OpenFinanceClient({ initialConnections, error }: Props) {
       await syncConnectionTransactions(id),
     ];
 
-    const hasError = !!accResult.error || !!txResult.error;
+    const hasError   = !!accResult.error || !!txResult.error;
     const firstError = accResult.error ?? txResult.error ?? null;
 
     if (hasError) {
@@ -281,6 +378,9 @@ export function OpenFinanceClient({ initialConnections, error }: Props) {
         />
       )}
 
+      {/* Painel de saude (Sprint 9.13) */}
+      <HealthPanel stats={healthStats} />
+
       {/* Header de acoes */}
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2">
@@ -346,7 +446,7 @@ export function OpenFinanceClient({ initialConnections, error }: Props) {
       )}
 
       {/* Empty state */}
-      {connections.length === 0 ? (
+      {activeConnections.length === 0 && connections.filter((c) => c.status === "disconnected").length === 0 ? (
         <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 px-6 py-12 text-center">
           <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-zinc-800">
             <svg className="h-6 w-6 text-zinc-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
@@ -360,17 +460,28 @@ export function OpenFinanceClient({ initialConnections, error }: Props) {
         </div>
       ) : (
         <ul className="space-y-4">
-          {connections.map((conn) => {
+          {activeConnections.map((conn) => {
             const isSyncing  = syncingIds.has(conn.id);
             const isDeleting = deletingId === conn.id;
             const log        = conn.lastSyncLog;
             const status     = isSyncing ? "syncing" : conn.status;
 
+            const needsReconnect =
+              status === "expired" ||
+              status === "error" ||
+              status === "pending_user_action";
+            const isReconnecting = reconnectingId === conn.id;
+
+            // Mensagem de orientacao para status de atencao
+            const statusHint = needsReconnect ? (STATUS_HINT[status] ?? null) : null;
+
             return (
               <li
                 key={conn.id}
                 className={`rounded-xl border bg-zinc-900/60 transition ${
-                  isSyncing ? "border-blue-500/30" : "border-zinc-800"
+                  isSyncing       ? "border-blue-500/30"  :
+                  needsReconnect  ? "border-amber-500/20" :
+                  "border-zinc-800"
                 }`}
               >
                 {/* Cabecalho do card */}
@@ -406,14 +517,21 @@ export function OpenFinanceClient({ initialConnections, error }: Props) {
                   </div>
                 </div>
 
+                {/* Hint de orientacao para status de atencao */}
+                {statusHint && (
+                  <div className="border-t border-amber-500/20 bg-amber-500/5 px-5 py-2">
+                    <p className="text-[11px] text-amber-400">{statusHint}</p>
+                  </div>
+                )}
+
                 {/* Grid de stats */}
                 <div className="grid grid-cols-3 gap-px border-t border-zinc-800 bg-zinc-800 sm:grid-cols-6">
                   {[
-                    { label: "Ultima sync",  value: formatDate(conn.last_synced_at) },
-                    { label: "Duracao",      value: formatDuration(log?.duration_ms ?? null) },
-                    { label: "Contas",       value: conn.accountsCount },
-                    { label: "Cartoes",      value: conn.cardsCount },
-                    { label: "Tx criadas",   value: log?.transactions_created ?? "—" },
+                    { label: "Ultima sync",    value: formatDate(conn.last_synced_at as string | null) },
+                    { label: "Duracao",        value: formatDuration(log?.duration_ms ?? null) },
+                    { label: "Contas",         value: conn.accountsCount },
+                    { label: "Cartoes",        value: conn.cardsCount },
+                    { label: "Tx criadas",     value: log?.transactions_created ?? "—" },
                     { label: "Tx atualizadas", value: log?.transactions_updated ?? "—" },
                   ].map((s) => (
                     <div key={s.label} className="bg-zinc-900/80 px-3 py-2.5">
@@ -433,63 +551,53 @@ export function OpenFinanceClient({ initialConnections, error }: Props) {
                 )}
 
                 {/* Acoes */}
-                {(() => {
-                  const needsReconnect =
-                    status === "expired" ||
-                    status === "error" ||
-                    status === "pending_user_action";
-                  const isReconnecting = reconnectingId === conn.id;
-
-                  return (
-                    <div className="flex items-center gap-4 border-t border-zinc-800 px-5 py-3">
-                      {needsReconnect ? (
-                        <button
-                          onClick={() => handleReconnect(conn.id)}
-                          disabled={anyBusy}
-                          className="flex items-center gap-1.5 text-[12px] font-medium text-amber-400 transition hover:text-amber-300 disabled:opacity-40"
-                        >
-                          {isReconnecting ? (
-                            <><Spinner size="xs" /> Reconectando...</>
-                          ) : (
-                            <>
-                              <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
-                              </svg>
-                              Reconectar
-                            </>
-                          )}
-                        </button>
+                <div className="flex items-center gap-4 border-t border-zinc-800 px-5 py-3">
+                  {needsReconnect ? (
+                    <button
+                      onClick={() => handleReconnect(conn.id)}
+                      disabled={anyBusy}
+                      className="flex items-center gap-1.5 text-[12px] font-medium text-amber-400 transition hover:text-amber-300 disabled:opacity-40"
+                    >
+                      {isReconnecting ? (
+                        <><Spinner size="xs" /> Reconectando...</>
                       ) : (
-                        <button
-                          onClick={() => handleSyncOne(conn.id)}
-                          disabled={anyBusy}
-                          className="flex items-center gap-1.5 text-[12px] font-medium text-blue-400 transition hover:text-blue-300 disabled:opacity-40"
-                        >
-                          {isSyncing ? (
-                            <><Spinner size="xs" /> Sincronizando...</>
-                          ) : (
-                            <>
-                              <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                              </svg>
-                              Sincronizar
-                            </>
-                          )}
-                        </button>
+                        <>
+                          <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                          </svg>
+                          Reconectar
+                        </>
                       )}
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => handleSyncOne(conn.id)}
+                      disabled={anyBusy}
+                      className="flex items-center gap-1.5 text-[12px] font-medium text-blue-400 transition hover:text-blue-300 disabled:opacity-40"
+                    >
+                      {isSyncing ? (
+                        <><Spinner size="xs" /> Sincronizando...</>
+                      ) : (
+                        <>
+                          <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                          </svg>
+                          Sincronizar
+                        </>
+                      )}
+                    </button>
+                  )}
 
-                      <span className="text-zinc-700">·</span>
+                  <span className="text-zinc-700">·</span>
 
-                      <button
-                        onClick={() => handleDelete(conn.id)}
-                        disabled={anyBusy}
-                        className="text-[12px] text-zinc-500 transition hover:text-red-400 disabled:opacity-40"
-                      >
-                        {isDeleting ? "Desconectando..." : "Desconectar"}
-                      </button>
-                    </div>
-                  );
-                })()}
+                  <button
+                    onClick={() => handleDelete(conn.id)}
+                    disabled={anyBusy}
+                    className="text-[12px] text-zinc-500 transition hover:text-red-400 disabled:opacity-40"
+                  >
+                    {isDeleting ? "Desconectando..." : "Desconectar"}
+                  </button>
+                </div>
               </li>
             );
           })}
