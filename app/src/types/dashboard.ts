@@ -1,9 +1,16 @@
 /**
  * Types — Dashboard Module
- * Sprint 5.4B
+ * Sprint 5.4B / 7.4
  *
- * Mapeia as views de analytics criadas em 003_analytics_views.sql.
+ * Mapeia as views de analytics criadas em 003_analytics_views.sql
+ * e os dados de patrimônio consolidado adicionados na Sprint 7.4.
  */
+
+import type { InvestmentPosition } from "@/types/investment";
+import type { ManualAsset }        from "@/types/manual-asset";
+import type { B3QuoteMap }         from "@/types/b3-market";
+import type { DividendMap }        from "@/types/b3-dividend";
+import type { FxRateMap }          from "@/types/fx-rate";
 
 // ── Views ─────────────────────────────────────────────────────────────────────
 
@@ -44,6 +51,20 @@ export interface MonthlyExpenseByCategory {
   transaction_count: number;
 }
 
+// ── Patrimônio Consolidado (Sprint 7.4) ───────────────────────────────────────
+
+/**
+ * Dados brutos de patrimônio passados ao DashboardClient.
+ * As computações derivadas (total BRL, exposição, etc.) são feitas no Client.
+ */
+export interface PatrimonioData {
+  investments:  InvestmentPosition[];
+  manualAssets: ManualAsset[];
+  b3QuoteMap:   B3QuoteMap;
+  dividendMap:  DividendMap;
+  fxRateMap:    FxRateMap;
+}
+
 // ── Agregado ──────────────────────────────────────────────────────────────────
 
 /** Dados consolidados passados ao DashboardClient como props. */
@@ -54,6 +75,8 @@ export interface DashboardData {
   cashFlow:            MonthlyCashFlow[];
   /** Top categorias de despesa do mês corrente, ordenadas por total_amount desc. */
   expenseByCategory:   MonthlyExpenseByCategory[];
+  /** Dados brutos de patrimônio — investimentos, ativos manuais, cotações, dividendos. */
+  patrimonio:          PatrimonioData;
 }
 
 // ── Service response ──────────────────────────────────────────────────────────

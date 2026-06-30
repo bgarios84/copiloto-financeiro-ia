@@ -21,6 +21,8 @@ import {
   Calendar,
   CreditCard,
   PiggyBank,
+  History,
+  Flame,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -45,6 +47,8 @@ const NAV_MAIN: NavItem[] = [
   { label: "Orcamentos",    href: "/budgets",      icon: PiggyBank       },
   { label: "Investimentos", href: "/investments",  icon: TrendingUp      },
   { label: "Patrimonio",    href: "/wealth",       icon: PieChart        },
+  { label: "Timeline",      href: "/timeline",     icon: History         },
+  { label: "FIRE",          href: "/fire",         icon: Flame, isNew: true },
   { label: "Metas",         href: "/budget",       icon: Target          },
   { label: "Relatorios",    href: "/reports",      icon: FileText        },
 ];
@@ -294,7 +298,7 @@ function NavLink({
             <span className="rounded-full bg-violet-500/20 px-1.5 py-0.5 text-[9px] font-semibold uppercase text-violet-400">
               Novo
             </span>
-          )}
+            )}
         </TooltipContent>
       </Tooltip>
     );
