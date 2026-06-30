@@ -4,6 +4,8 @@ import { getTimelineEvents }    from "@/services/timeline";
 import { AppLayout }            from "@/components/layout/AppLayout";
 import { TimelineClient }       from "./TimelineClient";
 
+export const dynamic = "force-dynamic";
+
 export const metadata: Metadata = {
   title: "Timeline Financeira",
 };

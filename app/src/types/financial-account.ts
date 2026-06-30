@@ -96,6 +96,4 @@ export const CURRENCIES = [
 
 // ── Service response ──────────────────────────────────────────────────────────
 
-export type ServiceResult<T> =
-  | { data: T; error: null }
-  | { data: null; error: string };
+export type { ServiceResult } from "./common";

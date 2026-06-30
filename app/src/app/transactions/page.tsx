@@ -6,6 +6,8 @@ import { getCards } from "@/services/credit-card";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { TransactionsClient } from "./TransactionsClient";
 
+export const dynamic = "force-dynamic";
+
 export const metadata: Metadata = {
   title: "Transações",
 };

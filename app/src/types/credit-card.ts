@@ -86,6 +86,4 @@ export const DAY_OPTIONS = Array.from({ length: 31 }, (_, i) => ({
 
 // ── Service response ──────────────────────────────────────────────────────────
 
-export type ServiceResult<T> =
-  | { data: T; error: null }
-  | { data: null; error: string };
+export type { ServiceResult } from "./common";

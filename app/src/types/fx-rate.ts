@@ -28,4 +28,4 @@ export type FxRateMap = Record<string, number>;
 
 // ── Shared ─────────────────────────────────────────────────────────────────────
 
-export type ServiceResult<T> = { data: T; error: null } | { data: null; error: string };
+export type { ServiceResult } from "./common";

@@ -5,6 +5,8 @@ import { getInstitutions } from "@/services/financial-account";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { CreditCardsClient } from "./CreditCardsClient";
 
+export const dynamic = "force-dynamic";
+
 export const metadata: Metadata = {
   title: "Cartões de Crédito",
 };

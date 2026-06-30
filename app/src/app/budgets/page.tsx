@@ -6,6 +6,8 @@ import { getCategories } from "@/services/transaction";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { BudgetsClient } from "./BudgetsClient";
 
+export const dynamic = "force-dynamic";
+
 export const metadata: Metadata = {
   title: "Orçamentos",
 };

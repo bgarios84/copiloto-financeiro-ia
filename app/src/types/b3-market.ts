@@ -3,8 +3,7 @@
  * Sprint 7.1 — Market Data B3
  */
 
-import type { ServiceResult } from "@/types/fx-rate";
-export type { ServiceResult };
+export type { ServiceResult } from "./common";
 
 // ── b3_asset ──────────────────────────────────────────────────────────────────
 

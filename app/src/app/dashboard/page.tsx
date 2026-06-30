@@ -5,6 +5,8 @@ import { getRadarInsights }   from "@/services/radar";
 import { AppLayout }          from "@/components/layout/AppLayout";
 import { DashboardClient }    from "./DashboardClient";
 
+export const dynamic = "force-dynamic";
+
 export const metadata: Metadata = {
   title: "Dashboard",
 };

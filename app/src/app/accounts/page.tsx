@@ -4,6 +4,8 @@ import { getAccounts, getInstitutions } from "@/services/financial-account";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { AccountsClient } from "./AccountsClient";
 
+export const dynamic = "force-dynamic";
+
 export const metadata: Metadata = {
   title: "Contas",
 };

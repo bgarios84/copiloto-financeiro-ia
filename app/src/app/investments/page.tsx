@@ -8,6 +8,8 @@ import { buildDividendMap }              from "@/lib/b3-dividend";
 import { AppLayout }                     from "@/components/layout/AppLayout";
 import { InvestmentsClient }             from "./InvestmentsClient";
 
+export const dynamic = "force-dynamic";
+
 export const metadata: Metadata = { title: "Investimentos" };
 
 export default async function InvestmentsPage() {

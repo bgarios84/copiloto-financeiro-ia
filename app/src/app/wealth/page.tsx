@@ -5,6 +5,8 @@ import { getLatestRatesForBRL } from "@/services/fx-rate";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { WealthClient } from "./WealthClient";
 
+export const dynamic = "force-dynamic";
+
 export const metadata: Metadata = {
   title: "Patrimônio",
 };

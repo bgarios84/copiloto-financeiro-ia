@@ -3,8 +3,7 @@
  * Sprint 7.1.1
  */
 
-import type { ServiceResult } from "@/types/fx-rate";
-export type { ServiceResult };
+export type { ServiceResult } from "./common";
 
 // ── Event types ───────────────────────────────────────────────────────────────
 
