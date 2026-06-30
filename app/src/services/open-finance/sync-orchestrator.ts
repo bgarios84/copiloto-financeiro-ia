@@ -19,6 +19,7 @@
  */
 
 import { getOpenFinanceProvider } from "@/lib/open-finance";
+import { syncInvestmentsInternal } from "@/services/open-finance/investment-sync";
 import { categorizeTransaction } from "@/lib/categorization/transaction-categorizer";
 import { reconcileTransactions } from "@/lib/open-finance/reconciliation";
 import type { ReconciliationInput } from "@/lib/open-finance/reconciliation";
@@ -40,6 +41,10 @@ export interface ConnectionSyncResult {
   durationMs:             number;
   /** Janela efetiva usada para buscar transacoes (dias). */
   effectiveDaysBack:      number;
+  /** Sprint 9.11 -- Investment Sync */
+  investmentsCreated:     number;
+  investmentsUpdated:     number;
+  investmentsSkipped:     number;
 }
 
 export interface AllConnectionsSyncResult {
@@ -507,6 +512,7 @@ export async function runConnectionSync(
       accountsSynced: 0, transactionsCreated: 0,
       transactionsUpdated: 0, transactionsReconciled: 0,
       errors: [], durationMs: 0, effectiveDaysBack: 0,
+      investmentsCreated: 0, investmentsUpdated: 0, investmentsSkipped: 0,
     };
   }
 
@@ -517,6 +523,17 @@ export async function runConnectionSync(
     .eq("id", connectionId)
     .single();
   const institutionId = connRow?.institution_id ?? null;
+
+  // Buscar nome da instituicao para preencher investment_position.institution
+  let institutionName: string | null = null;
+  if (institutionId) {
+    const { data: inst } = await db
+      .from("institution")
+      .select("name")
+      .eq("id", institutionId)
+      .single();
+    institutionName = inst?.name ?? null;
+  }
 
   // Sprint 9.10 -- Janela incremental
   const effectiveDaysBack = computeEffectiveDaysBack(connRow?.last_synced_at ?? null, daysBack);
@@ -550,6 +567,16 @@ export async function runConnectionSync(
   // 5b. Sync de transacoes (+ categorizacao + reconciliacao) -- janela incremental
   const txResult = await syncTransactionsCore(db, userId, connectionId, effectiveDaysBack);
   allErrors.push(...txResult.errors);
+
+  // 5c. Sprint 9.11 -- Sync de investimentos (nao e critico: erro nao bloqueia o resto)
+  const invResult = await syncInvestmentsInternal(
+    db, userId, connectionId, institutionName, institutionId,
+  ).catch((err) => {
+    const msg = err instanceof Error ? err.message : "Erro no sync de investimentos.";
+    allErrors.push(msg);
+    return { investmentsCreated: 0, investmentsUpdated: 0, investmentsSkipped: 0, errors: [msg] };
+  });
+  allErrors.push(...invResult.errors);
 
   const durationMs = Date.now() - connStart;
 
@@ -586,7 +613,7 @@ export async function runConnectionSync(
         accounts_synced:      accountResult.accountsSynced,
         transactions_created: txResult.txCreated,
         transactions_updated: txResult.txUpdated,
-        transactions_skipped: 0,
+        transactions_skipped: invResult.investmentsSkipped,
         error_message:        allErrors.length > 0 ? allErrors.slice(0, 3).join("; ") : null,
         finished_at:          new Date().toISOString(),
         duration_ms:          durationMs,
@@ -605,6 +632,9 @@ export async function runConnectionSync(
     errors:                 allErrors,
     durationMs,
     effectiveDaysBack,
+    investmentsCreated:     invResult.investmentsCreated,
+    investmentsUpdated:     invResult.investmentsUpdated,
+    investmentsSkipped:     invResult.investmentsSkipped,
   };
 }
 
@@ -662,11 +692,12 @@ export async function runAllConnectionsSync(
         totalTransactionsReconciled += result.transactionsReconciled;
 
         console.log(
-          `[orchestrator] ${conn.id} (${conn.user_id}): ` +
-          `${result.accountsSynced} contas, ` +
-          `${result.transactionsCreated} tx criadas, ` +
-          `${result.transactionsUpdated} atualizadas, ` +
-          `${result.transactionsReconciled} reconciliadas, ` +
+          `[orchestrator] ${conn.id} (${conn.user_id}): `+
+          `${result.accountsSynced} contas, `+
+          `${result.transactionsCreated} tx criadas, `+
+          `${result.transactionsUpdated} atualizadas, `+
+          `${result.transactionsReconciled} reconciliadas, `+
+          `inv: ${result.investmentsCreated}c/${result.investmentsUpdated}u, `+
           `janela=${result.effectiveDaysBack}d -- ${result.durationMs}ms`,
         );
       }
@@ -678,6 +709,7 @@ export async function runAllConnectionsSync(
         accountsSynced: 0, transactionsCreated: 0,
         transactionsUpdated: 0, transactionsReconciled: 0,
         errors: [msg], durationMs: 0, effectiveDaysBack: 0,
+        investmentsCreated: 0, investmentsUpdated: 0, investmentsSkipped: 0,
       });
     }
   }
@@ -694,8 +726,5 @@ export async function runAllConnectionsSync(
     durationMs:             Date.now() - globalStart,
     startedAt,
     finishedAt:             new Date().toISOString(),
-  };
-}
-ishedAt:             new Date().toISOString(),
   };
 }

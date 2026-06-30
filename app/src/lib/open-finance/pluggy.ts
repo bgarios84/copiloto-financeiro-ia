@@ -341,6 +341,7 @@ export class PluggyProvider implements OpenFinanceProvider {
       name:             inv.name,
       code:             inv.code?.trim() || null,
       type:             inv.type,
+      subtype:          inv.subtype?.trim() ?? null,
       currency:         inv.currencyCode,
       currentValue:     inv.balance ?? null,
       acquisitionValue: inv.metadata?.amount ?? null,

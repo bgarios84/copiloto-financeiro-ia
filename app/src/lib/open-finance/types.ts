@@ -63,6 +63,8 @@ export interface OFProviderInvestment {
   code:             string | null;
   /** Tipo bruto do provider (ex: "EQUITY", "MUTUAL_FUND", "FIXED_INCOME"). */
   type:             string;
+  /** Subtipo bruto do provider (ex: "BDR", "REAL_ESTATE_FUND", "ETF"). Usado para FII/BDR. */
+  subtype:          string | null;
   /** Codigo da moeda (ex: "BRL", "USD"). */
   currency:         string;
   /** Valor atual total da posicao. */
