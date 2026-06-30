@@ -50,6 +50,8 @@ import { ASSET_CLASS_LABELS, ASSET_CLASS_COLORS } from "@/types/investment";
 import { B3_QUOTED_CLASSES }    from "@/types/b3-market";
 import type { B3QuoteMap }      from "@/types/b3-market";
 import type { FxRateMap }       from "@/types/fx-rate";
+import type { HealthSnapshot }  from "@/lib/financial-health";
+import { FinancialHealthCard }  from "@/components/dashboard/FinancialHealthCard";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -226,9 +228,14 @@ function buildMetrics(data: DashboardData): ExMetrics {
 // MAIN CLIENT COMPONENT
 // ═══════════════════════════════════════════════════════════════
 
-interface Props { data: DashboardData; error: string | null; radarInsights: RadarInsight[]; }
+interface Props {
+  data:            DashboardData;
+  error:           string | null;
+  radarInsights:   RadarInsight[];
+  healthSnapshot:  HealthSnapshot | null;
+}
 
-export function DashboardClient({ data, error, radarInsights }: Props) {
+export function DashboardClient({ data, error, radarInsights, healthSnapshot }: Props) {
   const { investments, manualAssets } = data.patrimonio;
   const hasData = data.summary !== null || investments.length > 0 || manualAssets.length > 0;
 
@@ -274,6 +281,11 @@ export function DashboardClient({ data, error, radarInsights }: Props) {
         <CategoriasCard className="lg:col-span-5" data={data} />
         <RadarCard className="lg:col-span-7" insights={radarInsights} />
       </div>
+
+      {/* 7. Saúde Financeira */}
+      {healthSnapshot && (
+        <FinancialHealthCard snapshot={healthSnapshot} />
+      )}
     </div>
   );
 }

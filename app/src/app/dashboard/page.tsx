@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
-import { requireAuth }        from "@/lib/supabase/require-auth";
-import { getDashboardData }   from "@/services/dashboard";
-import { getRadarInsights }   from "@/services/radar";
-import { AppLayout }          from "@/components/layout/AppLayout";
-import { DashboardClient }    from "./DashboardClient";
+import { requireAuth }               from "@/lib/supabase/require-auth";
+import { getDashboardData }          from "@/services/dashboard";
+import { getRadarInsights }          from "@/services/radar";
+import { computeHealthFromDashboard } from "@/services/financial-health";
+import { AppLayout }                 from "@/components/layout/AppLayout";
+import { DashboardClient }           from "./DashboardClient";
 
 export const dynamic = "force-dynamic";
 
@@ -39,12 +40,15 @@ export default async function DashboardPage() {
     },
   };
 
+  const healthResult = computeHealthFromDashboard(data);
+
   return (
-    <AppLayout>
+     <AppLayout>
       <DashboardClient
         data={data}
         error={result.error}
         radarInsights={radarResult.data ?? []}
+        healthSnapshot={healthResult.data ?? null}
       />
     </AppLayout>
   );
