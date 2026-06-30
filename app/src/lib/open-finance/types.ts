@@ -138,8 +138,6 @@ export interface OpenFinanceProvider {
   syncInvestments(providerItemId: string): Promise<OFProviderInvestment[]>;
 
   refreshConnection(providerItemId: string): Promise<{ connectToken: string; expiresAt: string }>;
-
-  handleWebhook(rawBody: Buffer | string, signature: string): Promise<OFProviderWebhookEvent>;
 }
 
 // -- Erros ---------------------------------------------------------------------

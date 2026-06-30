@@ -19,7 +19,7 @@
  */
 
 import { getOpenFinanceProvider } from "@/lib/open-finance";
-import { syncInvestmentsInternal } from "@/services/open-finance/investment-sync";
+import { syncInvestmentsInternal, type InvestmentSyncResult } from "@/services/open-finance/investment-sync";
 import { categorizeTransaction } from "@/lib/categorization/transaction-categorizer";
 import { reconcileTransactions } from "@/lib/open-finance/reconciliation";
 import type { ReconciliationInput } from "@/lib/open-finance/reconciliation";
@@ -560,23 +560,40 @@ export async function runConnectionSync(
 
   const allErrors: string[] = [];
 
-  // 5a. Sync de contas
-  const accountResult = await syncAccountsCore(db, userId, connectionId, institutionId);
-  allErrors.push(...accountResult.errors);
+  // Pre-declarados com defaults: garante que steps 6/7/8 sempre executam,
+  // mesmo se uma excecao inesperada escapar dos catch internos de cada step.
+  let accountResult: { accountsSynced: number; errors: string[] } =
+    { accountsSynced: 0, errors: [] };
+  let txResult: { txCreated: number; txUpdated: number; txReconciled: number; errors: string[] } =
+    { txCreated: 0, txUpdated: 0, txReconciled: 0, errors: [] };
+  let invResult: InvestmentSyncResult =
+    { investmentsCreated: 0, investmentsUpdated: 0, investmentsSkipped: 0, errors: [] };
 
-  // 5b. Sync de transacoes (+ categorizacao + reconciliacao) -- janela incremental
-  const txResult = await syncTransactionsCore(db, userId, connectionId, effectiveDaysBack);
-  allErrors.push(...txResult.errors);
+  try {
+    // 5a. Sync de contas
+    accountResult = await syncAccountsCore(db, userId, connectionId, institutionId);
+    allErrors.push(...accountResult.errors);
 
-  // 5c. Sprint 9.11 -- Sync de investimentos (nao e critico: erro nao bloqueia o resto)
-  const invResult = await syncInvestmentsInternal(
-    db, userId, connectionId, institutionName, institutionId,
-  ).catch((err) => {
-    const msg = err instanceof Error ? err.message : "Erro no sync de investimentos.";
-    allErrors.push(msg);
-    return { investmentsCreated: 0, investmentsUpdated: 0, investmentsSkipped: 0, errors: [msg] };
-  });
-  allErrors.push(...invResult.errors);
+    // 5b. Sync de transacoes (+ categorizacao + reconciliacao) -- janela incremental
+    txResult = await syncTransactionsCore(db, userId, connectionId, effectiveDaysBack);
+    allErrors.push(...txResult.errors);
+
+    // 5c. Sprint 9.11 -- Sync de investimentos (nao e critico: erro nao bloqueia o resto)
+    invResult = await syncInvestmentsInternal(
+      db, userId, connectionId, institutionName, institutionId,
+    ).catch((err) => {
+      const msg = err instanceof Error ? err.message : "Erro no sync de investimentos.";
+      allErrors.push(msg);
+      return { investmentsCreated: 0, investmentsUpdated: 0, investmentsSkipped: 0, errors: [msg] };
+    });
+    allErrors.push(...invResult.errors);
+  } catch (unexpectedErr) {
+    // Excecao inesperada apos conexao ja estar em "syncing".
+    // Captura aqui garante que steps 6/7/8 sempre executam e resetam o status.
+    const msg = unexpectedErr instanceof Error ? unexpectedErr.message : "Erro inesperado no sync.";
+    allErrors.push(`Erro critico: ${msg}`);
+    console.error(`[orchestrator] Excecao inesperada no sync de ${connectionId}:`, msg);
+  }
 
   const durationMs = Date.now() - connStart;
 
@@ -655,6 +672,35 @@ export async function runAllConnectionsSync(
   const globalStart = Date.now();
   const startedAt   = new Date().toISOString();
 
+  // -- Recuperar conexoes travadas em "syncing" de runs anteriores que crasharam --
+  // Qualquer sync_log com status="running" mais velho que 30 min indica run abandonada.
+  // Resetamos a conexao para "connected" e o log para "error" antes de iniciar o ciclo.
+  const stuckCutoff = new Date(Date.now() - 30 * 60 * 1000).toISOString();
+  const { data: stuckLogs } = await db
+    .from("open_finance_sync_log")
+    .select("id, connection_id")
+    .eq("status", "running")
+    .lt("started_at", stuckCutoff);
+
+  if (stuckLogs && stuckLogs.length > 0) {
+    const stuckConnectionIds = stuckLogs.map((l) => l.connection_id);
+    console.warn(
+      `[orchestrator] Recuperando ${stuckLogs.length} conexao(oes) travada(s) em "syncing".`,
+    );
+    await db
+      .from("open_finance_connection")
+      .update({ status: "connected", updated_at: new Date().toISOString() })
+      .in("id", stuckConnectionIds);
+    await db
+      .from("open_finance_sync_log")
+      .update({
+        status:        "error",
+        error_message: "Sync interrompido (timeout 30 min). Resetado automaticamente.",
+        finished_at:   new Date().toISOString(),
+      })
+      .in("id", stuckLogs.map((l) => l.id));
+  }
+
   const { data: connections, error: connErr } = await db
     .from("open_finance_connection")
     .select("id, user_id, status")
@@ -714,6 +760,7 @@ export async function runAllConnectionsSync(
     }
   }
 
+  const finishedAt = new Date().toISOString();
   return {
     connectionsFound:       connections.length,
     connectionsProcessed:   connections.length - connectionsSkipped,
@@ -725,6 +772,6 @@ export async function runAllConnectionsSync(
     results,
     durationMs:             Date.now() - globalStart,
     startedAt,
-    finishedAt:             new Date().toISOString(),
+    finishedAt,
   };
 }

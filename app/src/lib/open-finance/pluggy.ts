@@ -18,7 +18,6 @@ import type {
   OFProviderAccount,
   OFProviderTransaction,
   OFProviderInvestment,
-  OFProviderWebhookEvent,
   OFConnectionInfo,
 } from "./types";
 import { OFError } from "./types";
@@ -373,25 +372,5 @@ export class PluggyProvider implements OpenFinanceProvider {
     });
     const expiresAt = new Date(Date.now() + 30 * 60 * 1000).toISOString();
     return { connectToken: res.accessToken, expiresAt };
-  }
-
-  /** STUB -- validacao HMAC implementada no Sprint 9.5. */
-  async handleWebhook(
-    rawBody:    Buffer | string,
-    _signature: string,
-  ): Promise<OFProviderWebhookEvent> {
-    let payload: Record<string, unknown>;
-    try {
-      const str = typeof rawBody === "string" ? rawBody : rawBody.toString("utf-8");
-      payload   = JSON.parse(str) as Record<string, unknown>;
-    } catch {
-      throw new OFError("DATA_VALIDATION", "Webhook payload invalido -- nao e JSON.", false);
-    }
-    return {
-      eventType:      String(payload["event"] ?? "unknown"),
-      providerItemId: String(payload["itemId"] ?? payload["id"] ?? ""),
-      payload,
-      receivedAt:     new Date().toISOString(),
-    };
   }
 }
