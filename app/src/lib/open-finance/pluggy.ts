@@ -1,13 +1,14 @@
 /**
- * Open Finance — Pluggy Provider Implementation
- * Sprint 9.1C — Provider Foundation
- * Sprint 9.4  — Transaction Sync
- * Sprint 9.4B — Migrado para GET /v2/transactions com cursor pagination (410 fix)
- * Sprint 9.4C — Removidos from/to/pageSize dos params v2 (causavam 400); filtragem client-side
+ * Open Finance -- Pluggy Provider Implementation
+ * Sprint 9.1C -- Provider Foundation
+ * Sprint 9.4  -- Transaction Sync
+ * Sprint 9.4B -- Migrado para GET /v2/transactions com cursor pagination (410 fix)
+ * Sprint 9.4C -- Removidos from/to/pageSize dos params v2 (causavam 400); filtragem client-side
+ * Sprint 9.8  -- Investment Sync: syncInvestments via GET /investments?itemId
  *
  * SEGURANCA:
- *   - Credenciais lidas via getPluggyEnv() — nunca process.env direto.
- *   - API key (TTL 2h) obtida fresh por request — nunca persiste.
+ *   - Credenciais lidas via getPluggyEnv() -- nunca process.env direto.
+ *   - API key (TTL 2h) obtida fresh por request -- nunca persiste.
  *   - Connect Token (TTL 30min) passado ao widget, nunca armazenado no banco.
  *   - Apenas provider_item_id (referencia nao-sensivel) e salvo no banco.
  */
@@ -16,13 +17,14 @@ import type {
   OpenFinanceProvider,
   OFProviderAccount,
   OFProviderTransaction,
+  OFProviderInvestment,
   OFProviderWebhookEvent,
   OFConnectionInfo,
 } from "./types";
 import { OFError } from "./types";
 import { getPluggyEnv } from "./env";
 
-// ── Tipos internos da API REST do Pluggy ──────────────────────────────────────
+// -- Tipos internos da API REST do Pluggy -------------------------------------
 
 interface PluggyAuthResponse {
   apiKey: string;
@@ -61,7 +63,7 @@ interface PluggyTransactionResponse {
   description: string;
   /** Valor absoluto (sempre positivo no Pluggy v2). */
   amount:      number;
-  /** ISO date string — pode ter horario, usamos apenas YYYY-MM-DD. */
+  /** ISO date string -- pode ter horario, usamos apenas YYYY-MM-DD. */
   date:        string;
   /** DEBIT = saida/despesa; CREDIT = entrada/receita. */
   type:        "DEBIT" | "CREDIT";
@@ -77,7 +79,43 @@ interface PluggyTransactionsV2Response {
   nextCursor?: string | null;
 }
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
+/** Sprint 9.8 -- Metadata de investimento do Pluggy */
+interface PluggyInvestmentMetadata {
+  rate?:         number | null;
+  rateType?:     string | null;
+  dueDate?:      string | null;
+  purchaseDate?: string | null;
+  issuerName?:   string | null;
+  /** Valor de aquisicao total (custo). */
+  amount?:       number | null;
+}
+
+/** Sprint 9.8 -- Posicao de investimento retornada pela API Pluggy */
+interface PluggyInvestmentResponse {
+  id:                     string;
+  /** Ex: "EQUITY", "MUTUAL_FUND", "FIXED_INCOME", "ETF", "COE", "OTHERS", "SECURITY" */
+  type:                   string;
+  subtype?:               string;
+  name:                   string;
+  /** Ticker ou codigo do ativo (ex: "VALE3", "KNRI11"). */
+  code?:                  string;
+  currencyCode:           string;
+  /** Valor atual total da posicao. */
+  balance?:               number;
+  quantity?:              number;
+  lastMonthRate?:         number;
+  lastTwelveMonthsRate?:  number;
+  taxes?:                 number;
+  date?:                  string;
+  metadata?:              PluggyInvestmentMetadata;
+}
+
+interface PluggyInvestmentsResponse {
+  total:   number;
+  results: PluggyInvestmentResponse[];
+}
+
+// -- Helpers ------------------------------------------------------------------
 
 function mapExecutionStatus(s: string): OFConnectionInfo["status"] {
   switch (s) {
@@ -105,7 +143,7 @@ function mapAccountType(
   return "checking";
 }
 
-// ── PluggyProvider ────────────────────────────────────────────────────────────
+// -- PluggyProvider -----------------------------------------------------------
 
 export class PluggyProvider implements OpenFinanceProvider {
   readonly name = "pluggy" as const;
@@ -120,7 +158,7 @@ export class PluggyProvider implements OpenFinanceProvider {
     this.clientSecret = env.clientSecret;
   }
 
-  // ── Autenticacao (privado) ────────────────────────────────────────────────
+  // -- Autenticacao (privado) ------------------------------------------------
 
   private async authenticate(): Promise<string> {
     const res = await this.request<PluggyAuthResponse>("/auth", {
@@ -131,7 +169,7 @@ export class PluggyProvider implements OpenFinanceProvider {
     return res.apiKey;
   }
 
-  // ── Fetch utilitario ──────────────────────────────────────────────────────
+  // -- Fetch utilitario ------------------------------------------------------
 
   private async request<T>(
     path:    string,
@@ -170,7 +208,7 @@ export class PluggyProvider implements OpenFinanceProvider {
     return response.json() as Promise<T>;
   }
 
-  // ── Metodos publicos ──────────────────────────────────────────────────────
+  // -- Metodos publicos ------------------------------------------------------
 
   async createConnectToken(
     _userId: string,
@@ -228,13 +266,8 @@ export class PluggyProvider implements OpenFinanceProvider {
   /**
    * Busca transacoes de uma conta no periodo [from, to] (YYYY-MM-DD).
    * Usa GET /v2/transactions com paginacao por cursor.
-   *
-   * A API v2 NAO aceita from/to/pageSize — apenas accountId e cursor.
-   * Filtragem por data e feita client-side apos receber cada pagina.
-   * Early-exit: para de paginar quando a pagina inteira estiver antes de `from`
-   * (assumindo ordem decrescente de data retornada pela API).
-   *
-   * Sprint 9.4C — removidos from/to/pageSize dos params (causavam 400).
+   * Filtragem por data e feita client-side.
+   * Early-exit quando a pagina inteira estiver antes de from.
    */
   async syncTransactions(
     providerAccountId: string,
@@ -255,14 +288,12 @@ export class PluggyProvider implements OpenFinanceProvider {
         { apiKey },
       );
 
-      // Filtrar pelo periodo desejado client-side
       const inRange = res.results.filter((tx) => {
         const d = tx.date.slice(0, 10);
         return d >= from && d <= to;
       });
       all.push(...inRange);
 
-      // Early-exit: se toda a pagina esta antes de `from`, nao ha mais dados relevantes
       const allBeforeFrom =
         res.results.length > 0 &&
         res.results.every((tx) => tx.date.slice(0, 10) < from);
@@ -283,6 +314,43 @@ export class PluggyProvider implements OpenFinanceProvider {
     }));
   }
 
+  /**
+   * Sprint 9.8 -- Busca posicoes de investimento do item via GET /investments?itemId.
+   * Retorna array normalizado de OFProviderInvestment.
+   * Em caso de 404 (item sem carteira de investimentos), retorna array vazio.
+   */
+  async syncInvestments(providerItemId: string): Promise<OFProviderInvestment[]> {
+    const apiKey = await this.authenticate();
+
+    let res: PluggyInvestmentsResponse;
+    try {
+      res = await this.request<PluggyInvestmentsResponse>(
+        `/investments?itemId=${providerItemId}`,
+        { apiKey },
+      );
+    } catch (err) {
+      // 404 = este item nao tem investimentos -- retorna vazio ao inves de erro
+      if (err instanceof OFError && err.message.includes("404")) {
+        return [];
+      }
+      throw err;
+    }
+
+    return (res.results ?? []).map((inv): OFProviderInvestment => ({
+      externalId:       inv.id,
+      name:             inv.name,
+      code:             inv.code?.trim() || null,
+      type:             inv.type,
+      currency:         inv.currencyCode,
+      currentValue:     inv.balance ?? null,
+      acquisitionValue: inv.metadata?.amount ?? null,
+      quantity:         inv.quantity ?? null,
+      annualRate:       inv.metadata?.rate ?? null,
+      lastMonthRate:    inv.lastMonthRate ?? null,
+      rawData:          inv as unknown as Record<string, unknown>,
+    }));
+  }
+
   async refreshConnection(
     providerItemId: string,
   ): Promise<{ connectToken: string; expiresAt: string }> {
@@ -296,7 +364,7 @@ export class PluggyProvider implements OpenFinanceProvider {
     return { connectToken: res.accessToken, expiresAt };
   }
 
-  /** STUB — validacao HMAC implementada no Sprint 9.5. */
+  /** STUB -- validacao HMAC implementada no Sprint 9.5. */
   async handleWebhook(
     rawBody:    Buffer | string,
     _signature: string,
@@ -306,7 +374,7 @@ export class PluggyProvider implements OpenFinanceProvider {
       const str = typeof rawBody === "string" ? rawBody : rawBody.toString("utf-8");
       payload   = JSON.parse(str) as Record<string, unknown>;
     } catch {
-      throw new OFError("DATA_VALIDATION", "Webhook payload invalido — nao e JSON.", false);
+      throw new OFError("DATA_VALIDATION", "Webhook payload invalido -- nao e JSON.", false);
     }
     return {
       eventType:      String(payload["event"] ?? "unknown"),

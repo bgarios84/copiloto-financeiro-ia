@@ -4,8 +4,10 @@ import * as React from "react";
 import { Plus, Search, Building2, RefreshCw } from "lucide-react";
 import { cn, formatCurrency } from "@/lib/utils";
 import { EmptyState } from "@/components/feedback/EmptyState";
-import { Loading } from "@/components/feedback/Loading";
 import { deleteAccount } from "@/services/financial-account";
+import { syncConnectionAccounts, syncConnectionTransactions } from "@/services/open-finance";
+import type { OFConnectionWithInstitution } from "@/services/open-finance";
+import { useRouter } from "next/navigation";
 import { AccountCard } from "./AccountCard";
 import { AccountFormModal } from "./AccountFormModal";
 import { OpenFinanceBanner } from "./OpenFinanceBanner";
@@ -15,8 +17,9 @@ import { ACCOUNT_TYPE_LABELS } from "@/types/financial-account";
 // ── Props ─────────────────────────────────────────────────────────────────────
 
 interface AccountsClientProps {
-  initialAccounts: FinancialAccount[];
-  institutions: Institution[];
+  initialAccounts:    FinancialAccount[];
+  institutions:       Institution[];
+  initialConnections: OFConnectionWithInstitution[];
 }
 
 // ── Totals card ───────────────────────────────────────────────────────────────
@@ -42,12 +45,7 @@ function TotalCard({
   };
 
   return (
-    <div
-      className={cn(
-        "rounded-xl border bg-gradient-to-br p-4",
-        colors[color]
-      )}
-    >
+    <div className={cn("rounded-xl border bg-gradient-to-br p-4", colors[color])}>
       <p className="text-[12px] font-medium text-muted-foreground">{label}</p>
       <p className={cn("mt-1 text-[22px] font-bold tabular-nums", textColors[color])}>
         {formatCurrency(value)}
@@ -58,13 +56,30 @@ function TotalCard({
 
 // ── Main client component ─────────────────────────────────────────────────────
 
-export function AccountsClient({ initialAccounts, institutions }: AccountsClientProps) {
-  const [accounts, setAccounts] = React.useState<FinancialAccount[]>(initialAccounts);
-  const [modalOpen, setModalOpen] = React.useState(false);
+export function AccountsClient({
+  initialAccounts,
+  institutions,
+  initialConnections,
+}: AccountsClientProps) {
+  const router = useRouter();
+
+  const [accounts,    setAccounts]    = React.useState<FinancialAccount[]>(initialAccounts);
+  const [modalOpen,   setModalOpen]   = React.useState(false);
   const [editingAccount, setEditingAccount] = React.useState<FinancialAccount | null>(null);
   const [deletingIds, setDeletingIds] = React.useState<Set<string>>(new Set());
   const [globalError, setGlobalError] = React.useState<string | null>(null);
-  const [search, setSearch] = React.useState("");
+  const [search,      setSearch]      = React.useState("");
+
+  // Sync state — chave: connectionId
+  const [syncingIds,  setSyncingIds]  = React.useState<Set<string>>(new Set());
+  const [syncAllBusy, setSyncAllBusy] = React.useState(false);
+  const [syncFeedback, setSyncFeedback] = React.useState<{
+    type: "success" | "error";
+    message: string;
+  } | null>(null);
+
+  // Conexoes ativas (status != deleted)
+  const activeConnections = initialConnections.filter((c) => c.status !== "disconnected");
 
   // ── Derived ────────────────────────────────────────────────────────────────
 
@@ -79,21 +94,74 @@ export function AccountsClient({ initialAccounts, institutions }: AccountsClient
     );
   }, [accounts, search]);
 
-  const totalBalance    = accounts.reduce((s, a) => s + a.balance, 0);
-  const totalPositive   = accounts.filter((a) => a.balance >= 0).reduce((s, a) => s + a.balance, 0);
-  const totalNegative   = accounts.filter((a) => a.balance < 0).reduce((s, a) => s + a.balance, 0);
+  const totalBalance  = accounts.reduce((s, a) => s + a.balance, 0);
+  const totalPositive = accounts.filter((a) => a.balance >= 0).reduce((s, a) => s + a.balance, 0);
+  const totalNegative = accounts.filter((a) => a.balance < 0).reduce((s, a) => s + a.balance, 0);
 
-  // ── Handlers ───────────────────────────────────────────────────────────────
+  // ── Sync helpers ───────────────────────────────────────────────────────────
 
-  function openCreate() {
-    setEditingAccount(null);
-    setModalOpen(true);
+  function addSyncing(id: string)    { setSyncingIds((s) => new Set(s).add(id)); }
+  function removeSyncing(id: string) { setSyncingIds((s) => { const n = new Set(s); n.delete(id); return n; }); }
+
+  async function syncConnection(connectionId: string): Promise<{ ok: boolean; msg: string }> {
+    const [accResult, txResult] = await Promise.all([
+      syncConnectionAccounts(connectionId),
+      syncConnectionTransactions(connectionId),
+    ]);
+    if (accResult.error) return { ok: false, msg: accResult.error };
+    if (txResult.error)  return { ok: false, msg: txResult.error };
+    const { accountsSynced }       = accResult.data;
+    const { transactionsCreated }  = txResult.data;
+    return {
+      ok:  true,
+      msg: `${accountsSynced} conta(s) e ${transactionsCreated} transação(ões) sincronizadas.`,
+    };
   }
 
-  function openEdit(account: FinancialAccount) {
-    setEditingAccount(account);
-    setModalOpen(true);
+  async function handleSyncOne(connectionId: string) {
+    if (syncingIds.has(connectionId) || syncAllBusy) return;
+    addSyncing(connectionId);
+    setSyncFeedback(null);
+    setGlobalError(null);
+
+    const { ok, msg } = await syncConnection(connectionId);
+    setSyncFeedback({ type: ok ? "success" : "error", message: msg });
+    if (ok) router.refresh();
+
+    removeSyncing(connectionId);
   }
+
+  async function handleSyncAll() {
+    if (syncAllBusy || syncingIds.size > 0 || activeConnections.length === 0) return;
+    setSyncAllBusy(true);
+    setSyncFeedback(null);
+    setGlobalError(null);
+
+    const results = await Promise.allSettled(
+      activeConnections.map((c) => syncConnection(c.id))
+    );
+
+    const errors = results
+      .filter((r): r is PromiseFulfilledResult<{ ok: boolean; msg: string }> =>
+        r.status === "fulfilled" && !r.value.ok)
+      .map((r) => r.value.msg);
+
+    const ok = errors.length === 0;
+    setSyncFeedback({
+      type: ok ? "success" : "error",
+      message: ok
+        ? `${activeConnections.length} conexão(ões) sincronizadas com sucesso.`
+        : `Erros em ${errors.length} conexão(ões): ${errors[0]}`,
+    });
+    if (ok) router.refresh();
+
+    setSyncAllBusy(false);
+  }
+
+  // ── Account CRUD ───────────────────────────────────────────────────────────
+
+  function openCreate() { setEditingAccount(null); setModalOpen(true); }
+  function openEdit(account: FinancialAccount) { setEditingAccount(account); setModalOpen(true); }
 
   function handleSuccess(account: FinancialAccount) {
     setAccounts((prev) => {
@@ -111,21 +179,16 @@ export function AccountsClient({ initialAccounts, institutions }: AccountsClient
   async function handleDelete(id: string) {
     setDeletingIds((s) => new Set(s).add(id));
     setGlobalError(null);
-
     const result = await deleteAccount(id);
-
     if (result.error) {
       setGlobalError(result.error);
     } else {
       setAccounts((prev) => prev.filter((a) => a.id !== id));
     }
-
-    setDeletingIds((s) => {
-      const next = new Set(s);
-      next.delete(id);
-      return next;
-    });
+    setDeletingIds((s) => { const next = new Set(s); next.delete(id); return next; });
   }
+
+  const anySyncing = syncAllBusy || syncingIds.size > 0;
 
   // ── Render ─────────────────────────────────────────────────────────────────
 
@@ -142,20 +205,58 @@ export function AccountsClient({ initialAccounts, institutions }: AccountsClient
           </p>
         </div>
 
-        <button
-          onClick={openCreate}
-          className={cn(
-            "flex h-9 shrink-0 items-center gap-2 rounded-xl px-4 text-[13px] font-semibold text-white",
-            "bg-gradient-to-r from-blue-500 to-violet-600 transition-opacity hover:opacity-90"
+        <div className="flex items-center gap-2">
+          {/* Sincronizar todas — só aparece quando há conexões OF ativas */}
+          {activeConnections.length > 0 && (
+            <button
+              onClick={handleSyncAll}
+              disabled={anySyncing}
+              className={cn(
+                "flex h-9 shrink-0 items-center gap-2 rounded-xl px-4 text-[13px] font-semibold",
+                "border border-blue-500/30 bg-blue-500/10 text-blue-400 transition-opacity hover:opacity-80",
+                "disabled:cursor-not-allowed disabled:opacity-50"
+              )}
+            >
+              <RefreshCw className={cn("h-4 w-4", syncAllBusy && "animate-spin")} />
+              {syncAllBusy ? "Sincronizando..." : "Sincronizar todas"}
+            </button>
           )}
-        >
-          <Plus className="h-4 w-4" />
-          Nova conta
-        </button>
+
+          <button
+            onClick={openCreate}
+            className={cn(
+              "flex h-9 shrink-0 items-center gap-2 rounded-xl px-4 text-[13px] font-semibold text-white",
+              "bg-gradient-to-r from-blue-500 to-violet-600 transition-opacity hover:opacity-90"
+            )}
+          >
+            <Plus className="h-4 w-4" />
+            Nova conta
+          </button>
+        </div>
       </div>
 
       {/* Open Finance — conectar banco automaticamente */}
       <OpenFinanceBanner />
+
+      {/* Sync feedback */}
+      {syncFeedback && (
+        <div
+          className={cn(
+            "mb-4 flex items-center justify-between rounded-lg border px-4 py-3 text-[13px]",
+            syncFeedback.type === "success"
+              ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-400"
+              : "border-red-500/20 bg-red-500/10 text-red-400"
+          )}
+        >
+          <span>{syncFeedback.message}</span>
+          <button
+            onClick={() => setSyncFeedback(null)}
+            className="ml-3 font-medium underline underline-offset-2"
+          >
+            Fechar
+          </button>
+        </div>
+      )}
 
       {/* Summary cards */}
       {accounts.length > 0 && (
@@ -179,7 +280,7 @@ export function AccountsClient({ initialAccounts, institutions }: AccountsClient
         </div>
       )}
 
-      {/* Search — só exibe quando há contas */}
+      {/* Search */}
       {accounts.length > 0 && (
         <div className="mb-4 relative">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -220,6 +321,10 @@ export function AccountsClient({ initialAccounts, institutions }: AccountsClient
               account={account}
               onEdit={openEdit}
               onDelete={handleDelete}
+              onSync={account.of_connection_id ? handleSyncOne : undefined}
+              syncing={account.of_connection_id
+                ? syncingIds.has(account.of_connection_id) || syncAllBusy
+                : false}
               deleting={deletingIds.has(account.id)}
             />
           ))}
