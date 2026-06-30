@@ -38,6 +38,8 @@ export interface ConnectionSyncResult {
   transactionsReconciled: number;
   errors:                 string[];
   durationMs:             number;
+  /** Janela efetiva usada para buscar transacoes (dias). */
+  effectiveDaysBack:      number;
 }
 
 export interface AllConnectionsSyncResult {
@@ -434,6 +436,33 @@ export async function syncTransactionsCore(
   return { txCreated, txUpdated, txReconciled, errors };
 }
 
+// -- Incremental window helper (Sprint 9.10) ----------------------------------
+
+/**
+ * Calcula a janela efetiva de busca de transacoes.
+ *
+ * Logica:
+ *   - Sem last_synced_at (primeiro sync): retorna daysBackFallback inteiro.
+ *   - Com last_synced_at: dias desde o ultimo sync + 2 dias de overlap.
+ *   - Minimo: 2 dias (garante reprocessamento de txs pendentes do dia anterior).
+ *   - Maximo: daysBackFallback (nao expande alem do limite do chamador).
+ *
+ * Exemplos:
+ *   - Cron diario (daysBackFallback=7): sync de ontem -> 3 dias (1 dia + 2 overlap)
+ *   - Webhook (daysBackFallback=7):     sync de 2h atras -> 2 dias (minimo)
+ *   - Manual (daysBackFallback=90):     primeiro sync -> 90 dias
+ */
+function computeEffectiveDaysBack(lastSyncedAt: string | null, daysBackFallback: number): number {
+  if (!lastSyncedAt) return daysBackFallback;
+
+  const lastSync   = new Date(lastSyncedAt).getTime();
+  const now        = Date.now();
+  const daysSince  = Math.ceil((now - lastSync) / 86_400_000);
+  const withBuffer = daysSince + 2;          // overlap para txs chegando tarde
+  const effective  = Math.max(2, withBuffer); // minimo sempre 2 dias
+  return Math.min(effective, daysBackFallback);
+}
+
 // -- runConnectionSync: sync completo de uma conexao (com lock + log) ---------
 
 /**
@@ -442,16 +471,23 @@ export async function syncTransactionsCore(
  *
  * Fluxo:
  *   1. Verifica lock (impede execucao simultanea)
- *   2. Abre sync_log com status "running"
- *   3. Marca conexao como "syncing"
- *   4. syncAccountsCore -> syncTransactionsCore
- *   5. Atualiza status da conexao (connected/error)
- *   6. Fecha sync_log com duracao e contagens
+ *   2. Le last_synced_at para calcular janela incremental
+ *   3. Abre sync_log com status "running"
+ *   4. Marca conexao como "syncing"
+ *   5. syncAccountsCore -> syncTransactionsCore (janela incremental)
+ *   6. Atualiza status da conexao (connected/error)
+ *   7. Fecha sync_log com duracao e contagens
+ *
+ * Janela de transacoes (Sprint 9.10 -- Incremental Sync):
+ *   - Se last_synced_at existir: dias desde o ultimo sync + 2 dias de overlap
+ *   - Minimo: 2 dias (sempre reprocura o dia anterior por txs pendentes)
+ *   - Maximo: daysBack (cap do chamador -- 90 para manual, 7 para cron)
+ *   - Primeiro sync (sem last_synced_at): usa daysBack como fallback completo
  *
  * @param db           - service_role client (sem RLS)
  * @param userId       - UUID do dono da conexao
  * @param connectionId - UUID da open_finance_connection
- * @param daysBack     - janela de transacoes (padrao: 90 dias)
+ * @param daysBack     - janela maxima / fallback de primeiro sync (padrao: 90)
  * @param trigger      - origem do sync ("cron" | "manual" | "webhook")
  */
 export async function runConnectionSync(
@@ -470,17 +506,20 @@ export async function runConnectionSync(
       connectionId, userId, skipped: true,
       accountsSynced: 0, transactionsCreated: 0,
       transactionsUpdated: 0, transactionsReconciled: 0,
-      errors: [], durationMs: 0,
+      errors: [], durationMs: 0, effectiveDaysBack: 0,
     };
   }
 
-  // 2. Buscar institution_id da conexao
+  // 2. Buscar institution_id + last_synced_at para calcular janela incremental
   const { data: connRow } = await db
     .from("open_finance_connection")
-    .select("institution_id")
+    .select("institution_id, last_synced_at")
     .eq("id", connectionId)
     .single();
   const institutionId = connRow?.institution_id ?? null;
+
+  // Sprint 9.10 -- Janela incremental
+  const effectiveDaysBack = computeEffectiveDaysBack(connRow?.last_synced_at ?? null, daysBack);
 
   // 3. Abrir sync log
   const { data: syncLog } = await db
@@ -508,8 +547,8 @@ export async function runConnectionSync(
   const accountResult = await syncAccountsCore(db, userId, connectionId, institutionId);
   allErrors.push(...accountResult.errors);
 
-  // 5b. Sync de transacoes (+ categorizacao + reconciliacao)
-  const txResult = await syncTransactionsCore(db, userId, connectionId, daysBack);
+  // 5b. Sync de transacoes (+ categorizacao + reconciliacao) -- janela incremental
+  const txResult = await syncTransactionsCore(db, userId, connectionId, effectiveDaysBack);
   allErrors.push(...txResult.errors);
 
   const durationMs = Date.now() - connStart;
@@ -565,6 +604,7 @@ export async function runConnectionSync(
     transactionsReconciled: txResult.txReconciled,
     errors:                 allErrors,
     durationMs,
+    effectiveDaysBack,
   };
 }
 
@@ -627,18 +667,17 @@ export async function runAllConnectionsSync(
           `${result.transactionsCreated} tx criadas, ` +
           `${result.transactionsUpdated} atualizadas, ` +
           `${result.transactionsReconciled} reconciliadas, ` +
-          `${result.errors.length} erros -- ${result.durationMs}ms`,
+          `janela=${result.effectiveDaysBack}d -- ${result.durationMs}ms`,
         );
       }
     } catch (err) {
-      // Nao deixa uma conexao com falha bloquear as demais
       const msg = err instanceof Error ? err.message : "Erro fatal inesperado.";
       console.error(`[orchestrator] Conexao ${conn.id} falhou fatalmente:`, msg);
       results.push({
         connectionId: conn.id, userId: conn.user_id, skipped: false,
         accountsSynced: 0, transactionsCreated: 0,
         transactionsUpdated: 0, transactionsReconciled: 0,
-        errors: [msg], durationMs: 0,
+        errors: [msg], durationMs: 0, effectiveDaysBack: 0,
       });
     }
   }
@@ -655,5 +694,8 @@ export async function runAllConnectionsSync(
     durationMs:             Date.now() - globalStart,
     startedAt,
     finishedAt:             new Date().toISOString(),
+  };
+}
+ishedAt:             new Date().toISOString(),
   };
 }
