@@ -122,12 +122,22 @@ function mapExecutionStatus(s: string): OFConnectionInfo["status"] {
     case "SUCCESS":
     case "PARTIAL_SUCCESS":
       return "connected";
+    // Credenciais invalidas ou MFA necessario -- usuario precisa re-autenticar
     case "LOGIN_ERROR":
     case "INVALID_CREDENTIALS":
+    case "ACCOUNT_NEEDS_ACTION":
     case "WAITING_USER_INPUT":
       return "pending_user_action";
+    // Token / sessao expirada -- Pluggy nao consegue mais atualizar sem novo login
+    case "OUTDATED":
+    case "TOKEN_EXPIRED":
+    case "ITEM_OUTDATED":
+      return "expired";
+    // Erros tecnicos do provider ou da instituicao
     case "ERROR":
     case "ITEM_ERROR":
+    case "CONNECTION_ERROR":
+    case "ACCOUNT_LOCKED":
       return "error";
     default:
       return "connected";

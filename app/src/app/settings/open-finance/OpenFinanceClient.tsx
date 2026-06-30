@@ -10,6 +10,7 @@ import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 import {
   getConnectToken,
+  getReconnectToken,
   saveConnection,
   deleteConnection,
   syncConnectionAccounts,
@@ -92,20 +93,26 @@ export function OpenFinanceClient({ initialConnections, error }: Props) {
   const [connections, setConnections] =
     React.useState<OFConnectionDetail[]>(initialConnections);
 
-  const [connectToken, setConnectToken] = React.useState<string | null>(null);
-  const [connecting,   setConnecting]   = React.useState(false);
-  const [syncingIds,   setSyncingIds]   = React.useState<Set<string>>(new Set());
-  const [syncAllBusy,  setSyncAllBusy]  = React.useState(false);
-  const [deletingId,   setDeletingId]   = React.useState<string | null>(null);
+  const [connectToken,   setConnectToken]   = React.useState<string | null>(null);
+  const [connecting,     setConnecting]     = React.useState(false);
+  const [syncingIds,     setSyncingIds]     = React.useState<Set<string>>(new Set());
+  const [syncAllBusy,    setSyncAllBusy]    = React.useState(false);
+  const [deletingId,     setDeletingId]     = React.useState<string | null>(null);
+  const [reconnectingId, setReconnectingId] = React.useState<string | null>(null);
   const [feedback, setFeedback] = React.useState<{
     type: "success" | "error"; message: string;
   } | null>(null);
 
   const anyBusy =
-    connecting || connectToken !== null || syncingIds.size > 0 || syncAllBusy || deletingId !== null;
+    connecting || connectToken !== null || syncingIds.size > 0 || syncAllBusy ||
+    deletingId !== null || reconnectingId !== null;
 
-  const activeConnections = connections.filter(
-    (c) => c.status !== "disconnected" && c.status !== "expired",
+  // Mostra todas as conexoes visiveis (exceto deletadas/desconectadas)
+  const activeConnections = connections.filter((c) => c.status !== "disconnected");
+
+  // Subconjunto que pode ser sincronizado (precisa de auth valida)
+  const syncableConnections = activeConnections.filter(
+    (c) => c.status !== "expired" && c.status !== "pending_user_action",
   );
 
   // Atualizar status de uma conexao localmente (otimista)
@@ -141,21 +148,44 @@ export function OpenFinanceClient({ initialConnections, error }: Props) {
   }
 
   async function handleSuccess(data: { item: { id: string } }) {
+    const isReconnect = reconnectingId !== null;
     setConnectToken(null);
+    setReconnectingId(null);
     setFeedback(null);
     const saveResult = await saveConnection(data.item.id);
     if (saveResult.error) {
       setFeedback({ type: "error", message: saveResult.error });
     } else {
-      setFeedback({ type: "success", message: "Banco conectado! Clique em Sincronizar." });
+      setFeedback({
+        type: "success",
+        message: isReconnect
+          ? "Banco reconectado com sucesso!"
+          : "Banco conectado! Clique em Sincronizar.",
+      });
       router.refresh();
     }
   }
 
-  function handleClose() { setConnectToken(null); setConnecting(false); }
+  function handleClose() { setConnectToken(null); setConnecting(false); setReconnectingId(null); }
   function handleWidgetError(e: { message: string }) {
-    setConnectToken(null); setConnecting(false);
+    setConnectToken(null); setConnecting(false); setReconnectingId(null);
     setFeedback({ type: "error", message: e.message });
+  }
+
+  // -- Reconectar banco (Sprint 9.12) -----------------------------------------
+
+  async function handleReconnect(id: string) {
+    setReconnectingId(id);
+    setFeedback(null);
+    const result = await getReconnectToken(id);
+    if (result.error || !result.data) {
+      setFeedback({ type: "error", message: result.error ?? "Erro ao gerar token de reconexao." });
+      setReconnectingId(null);
+      return;
+    }
+    // Abre o widget Pluggy em modo de atualizacao (token scoped ao item existente)
+    setConnectToken(result.data.connectToken);
+    // reconnectingId permanece definido ate handleSuccess/handleClose/handleWidgetError
   }
 
   // -- Sincronizar uma conexao ------------------------------------------------
@@ -194,7 +224,7 @@ export function OpenFinanceClient({ initialConnections, error }: Props) {
     setSyncAllBusy(true);
     setFeedback(null);
 
-    const targets = activeConnections.filter((c) => !syncingIds.has(c.id));
+    const targets = syncableConnections.filter((c) => !syncingIds.has(c.id));
     targets.forEach((c) => addSyncing(c.id));
 
     const results = await Promise.allSettled(
@@ -271,7 +301,7 @@ export function OpenFinanceClient({ initialConnections, error }: Props) {
             )}
           </button>
 
-          {activeConnections.length > 1 && (
+          {syncableConnections.length > 1 && (
             <button
               onClick={handleSyncAll}
               disabled={anyBusy}
@@ -403,34 +433,63 @@ export function OpenFinanceClient({ initialConnections, error }: Props) {
                 )}
 
                 {/* Acoes */}
-                <div className="flex items-center gap-4 border-t border-zinc-800 px-5 py-3">
-                  <button
-                    onClick={() => handleSyncOne(conn.id)}
-                    disabled={anyBusy}
-                    className="flex items-center gap-1.5 text-[12px] font-medium text-blue-400 transition hover:text-blue-300 disabled:opacity-40"
-                  >
-                    {isSyncing ? (
-                      <><Spinner size="xs" /> Sincronizando...</>
-                    ) : (
-                      <>
-                        <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                        </svg>
-                        Sincronizar
-                      </>
-                    )}
-                  </button>
+                {(() => {
+                  const needsReconnect =
+                    status === "expired" ||
+                    status === "error" ||
+                    status === "pending_user_action";
+                  const isReconnecting = reconnectingId === conn.id;
 
-                  <span className="text-zinc-700">·</span>
+                  return (
+                    <div className="flex items-center gap-4 border-t border-zinc-800 px-5 py-3">
+                      {needsReconnect ? (
+                        <button
+                          onClick={() => handleReconnect(conn.id)}
+                          disabled={anyBusy}
+                          className="flex items-center gap-1.5 text-[12px] font-medium text-amber-400 transition hover:text-amber-300 disabled:opacity-40"
+                        >
+                          {isReconnecting ? (
+                            <><Spinner size="xs" /> Reconectando...</>
+                          ) : (
+                            <>
+                              <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                              </svg>
+                              Reconectar
+                            </>
+                          )}
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => handleSyncOne(conn.id)}
+                          disabled={anyBusy}
+                          className="flex items-center gap-1.5 text-[12px] font-medium text-blue-400 transition hover:text-blue-300 disabled:opacity-40"
+                        >
+                          {isSyncing ? (
+                            <><Spinner size="xs" /> Sincronizando...</>
+                          ) : (
+                            <>
+                              <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                              </svg>
+                              Sincronizar
+                            </>
+                          )}
+                        </button>
+                      )}
 
-                  <button
-                    onClick={() => handleDelete(conn.id)}
-                    disabled={anyBusy}
-                    className="text-[12px] text-zinc-500 transition hover:text-red-400 disabled:opacity-40"
-                  >
-                    {isDeleting ? "Desconectando..." : "Desconectar"}
-                  </button>
-                </div>
+                      <span className="text-zinc-700">·</span>
+
+                      <button
+                        onClick={() => handleDelete(conn.id)}
+                        disabled={anyBusy}
+                        className="text-[12px] text-zinc-500 transition hover:text-red-400 disabled:opacity-40"
+                      >
+                        {isDeleting ? "Desconectando..." : "Desconectar"}
+                      </button>
+                    </div>
+                  );
+                })()}
               </li>
             );
           })}

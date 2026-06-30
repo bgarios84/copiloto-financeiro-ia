@@ -6,6 +6,7 @@
  * Sprint 9.3 -- Account Sync
  * Sprint 9.6 -- Reconciliacao Automatica
  * Sprint 9.8 -- Refatorado para delegar ao Sync Orchestrator
+ * Sprint 9.12 -- getReconnectToken para reconexao de itens expirados/com erro
  *
  * Server Actions para o fluxo de conexao Open Finance.
  * Nenhum secret e exposto ao frontend.
@@ -49,6 +50,38 @@ export async function getConnectToken(): Promise<
     return { data: result, error: null };
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Erro ao gerar token de conexao.";
+    return { data: null, error: msg };
+  }
+}
+
+// -- Reconectar (Sprint 9.12) ---------------------------------------------------
+// Gera um connect token scoped para um item existente, abrindo o widget em modo
+// de atualizacao. Usado para conexoes com status expired/error/pending_user_action.
+
+export async function getReconnectToken(
+  connectionId: string,
+): Promise<ServiceResult<{ connectToken: string; expiresAt: string }>> {
+  try {
+    const user     = await requireAuth();
+    const supabase = await createClient();
+    const provider = await getOpenFinanceProvider();
+
+    const { data: conn, error: connErr } = await supabase
+      .from("open_finance_connection")
+      .select("provider_item_id")
+      .eq("id", connectionId)
+      .eq("user_id", user.id)
+      .is("deleted_at", null)
+      .single();
+
+    if (connErr || !conn) {
+      return { data: null, error: "Conexao nao encontrada." };
+    }
+
+    const result = await provider.refreshConnection(conn.provider_item_id);
+    return { data: result, error: null };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "Erro ao gerar token de reconexao.";
     return { data: null, error: msg };
   }
 }
