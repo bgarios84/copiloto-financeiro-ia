@@ -1,8 +1,8 @@
 "use client";
 
 /**
- * InvestmentsClient — shell client do módulo /investments
- * Sprint 7.1   — cotações B3 aplicadas na consolidação
+ * InvestmentsClient — Sprint 10.1 premium dark redesign
+ * Sprint 7.1   — cotacoes B3 aplicadas na consolidacao
  * Sprint 7.1.1 — dividendMap repassado para cada InvestmentItem
  */
 
@@ -19,8 +19,6 @@ import { deleteInvestmentPosition } from "@/services/investment";
 import { InvestmentItem }       from "./InvestmentItem";
 import { InvestmentFormModal }  from "./InvestmentFormModal";
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
 function formatBRL(amount: number): string {
   return new Intl.NumberFormat("pt-BR", {
     style:    "currency",
@@ -28,8 +26,6 @@ function formatBRL(amount: number): string {
     minimumFractionDigits: 2,
   }).format(amount);
 }
-
-// ── Props ─────────────────────────────────────────────────────────────────────
 
 interface Props {
   initialPositions: InvestmentPosition[];
@@ -40,8 +36,6 @@ interface Props {
   b3QuoteError:     string | null;
   dividendMap:      DividendMap;
 }
-
-// ── Component ─────────────────────────────────────────────────────────────────
 
 export function InvestmentsClient({
   initialPositions,
@@ -56,8 +50,6 @@ export function InvestmentsClient({
   const [modalOpen, setModalOpen] = useState(false);
   const [editing,   setEditing]   = useState<InvestmentPosition | null>(null);
   const [deleteErr, setDeleteErr] = useState<string | null>(null);
-
-  // ── Computed ─────────────────────────────────────────────────────────────────
 
   const { totalBRL, missing } = useMemo(() => {
     const items = positions
@@ -101,8 +93,6 @@ export function InvestmentsClient({
       .sort((a, b) => b.brl - a.brl)[0]?.p ?? null;
   }, [positions, rateMap, b3QuoteMap]);
 
-  // ── Handlers ─────────────────────────────────────────────────────────────────
-
   const openCreate = () => { setEditing(null); setModalOpen(true); };
   const openEdit   = (p: InvestmentPosition) => { setEditing(p); setModalOpen(true); };
   const closeModal = () => { setModalOpen(false); setEditing(null); };
@@ -110,11 +100,7 @@ export function InvestmentsClient({
   const handleSaved = (saved: InvestmentPosition) => {
     setPositions(prev => {
       const idx = prev.findIndex(p => p.id === saved.id);
-      if (idx >= 0) {
-        const next = [...prev];
-        next[idx] = saved;
-        return next;
-      }
+      if (idx >= 0) { const next = [...prev]; next[idx] = saved; return next; }
       return [saved, ...prev];
     });
   };
@@ -128,162 +114,154 @@ export function InvestmentsClient({
     }
   };
 
-  // ── Render ────────────────────────────────────────────────────────────────────
-
   return (
     <div className="space-y-5">
-      {/* Header */}
+      {/* ── Header ─────────────────────────────────────────────────────────── */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">
-            Investimentos
-          </h1>
-          <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-0.5">
-            Posições financeiras em corretoras e exchanges
-          </p>
+          <h1 className="text-2xl font-bold text-zinc-100">Investimentos</h1>
+          <p className="text-sm text-zinc-500 mt-0.5">Posicoes em corretoras e exchanges</p>
         </div>
         <button
           onClick={openCreate}
-          className="flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium transition-colors shadow-sm"
+          className="flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-[13px] font-semibold transition-colors"
         >
           <Plus className="w-4 h-4" />
-          Nova Posição
+          Nova Posicao
         </button>
       </div>
 
-      {/* Errors */}
+      {/* ── Errors ─────────────────────────────────────────────────────────── */}
       {(initialError || deleteErr || rateError) && (
-        <div className="p-3 rounded-xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-sm text-red-600 dark:text-red-400">
+        <div className="px-4 py-3 rounded-xl bg-red-500/10 border border-red-500/30 text-[13px] text-red-400">
           {initialError ?? deleteErr ?? rateError}
         </div>
       )}
-
-      {/* B3 quote error (non-blocking) */}
       {b3QuoteError && (
-        <div className="flex items-center gap-2 p-3 rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 text-sm text-amber-700 dark:text-amber-400">
+        <div className="flex items-center gap-2 px-4 py-3 rounded-xl bg-amber-500/10 border border-amber-500/25 text-[13px] text-amber-400">
           <AlertTriangle className="w-4 h-4 flex-shrink-0" />
-          <span>Cotações B3 indisponíveis: {b3QuoteError}. Usando preços manuais.</span>
+          <span>Cotacoes B3 indisponiveis: {b3QuoteError}. Usando precos manuais.</span>
         </div>
       )}
-
-      {/* Missing FX currencies warning */}
       {missing.length > 0 && (
-        <div className="flex items-center gap-2 p-3 rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 text-sm text-amber-700 dark:text-amber-400">
+        <div className="flex items-center gap-2 px-4 py-3 rounded-xl bg-amber-500/10 border border-amber-500/25 text-[13px] text-amber-400">
           <AlertTriangle className="w-4 h-4 flex-shrink-0" />
           <span>
-            Sem cotação para: <strong>{missing.join(", ")}</strong>. Esses ativos não estão incluídos no total em BRL.
+            Sem cotacao para: <strong className="text-amber-300">{missing.join(", ")}</strong>. Esses ativos nao estao incluidos no total em BRL.
           </span>
         </div>
       )}
 
-      {/* Summary cards */}
+      {/* ── Summary cards ──────────────────────────────────────────────────── */}
       {positions.length > 0 && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          <div className="bg-gradient-to-br from-blue-600 to-blue-700 rounded-xl p-4 text-white">
-            <p className="text-xs font-medium text-blue-100">Total em BRL</p>
-            <p className="text-xl font-bold mt-1">{formatBRL(totalBRL)}</p>
+          {/* Total BRL — destaque */}
+          <div className="col-span-2 md:col-span-1 rounded-xl border border-blue-500/25 bg-blue-500/8 p-4">
+            <p className="text-[11px] uppercase tracking-wide text-blue-400 font-medium">Total em BRL</p>
+            <p className="text-xl font-bold text-blue-300 mt-1">{formatBRL(totalBRL)}</p>
           </div>
-          <div className="bg-white dark:bg-zinc-900 rounded-xl p-4 border border-zinc-200 dark:border-zinc-800">
-            <p className="text-xs font-medium text-zinc-500 dark:text-zinc-400">Posições</p>
-            <p className="text-xl font-bold text-zinc-900 dark:text-zinc-100 mt-1">
-              {positions.length}
-            </p>
+
+          <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 p-4">
+            <p className="text-[11px] uppercase tracking-wide text-zinc-600">Posicoes</p>
+            <p className="text-xl font-bold text-zinc-100 mt-1">{positions.length}</p>
           </div>
-          <div className="bg-white dark:bg-zinc-900 rounded-xl p-4 border border-zinc-200 dark:border-zinc-800">
-            <p className="text-xs font-medium text-zinc-500 dark:text-zinc-400">Classes</p>
-            <p className="text-xl font-bold text-zinc-900 dark:text-zinc-100 mt-1">
-              {byClass.length}
-            </p>
+
+          <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 p-4">
+            <p className="text-[11px] uppercase tracking-wide text-zinc-600">Classes</p>
+            <p className="text-xl font-bold text-zinc-100 mt-1">{byClass.length}</p>
           </div>
-          <div className="bg-white dark:bg-zinc-900 rounded-xl p-4 border border-zinc-200 dark:border-zinc-800 overflow-hidden">
-            <p className="text-xs font-medium text-zinc-500 dark:text-zinc-400">Maior posição</p>
+
+          <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 p-4 overflow-hidden">
+            <p className="text-[11px] uppercase tracking-wide text-zinc-600">Maior posicao</p>
             {topPosition ? (
-              <p className="text-sm font-bold text-zinc-900 dark:text-zinc-100 mt-1 truncate">
+              <p className="text-[13px] font-semibold text-zinc-200 mt-1 truncate">
                 {ASSET_CLASS_ICONS[topPosition.asset_class]} {topPosition.asset_name}
               </p>
             ) : (
-              <p className="text-sm text-zinc-400 mt-1">—</p>
+              <p className="text-[13px] text-zinc-500 mt-1">—</p>
             )}
           </div>
         </div>
       )}
 
-      {/* Allocation bar */}
+      {/* ── Allocation bar ─────────────────────────────────────────────────── */}
       {byClass.length > 1 && (
-        <div className="bg-white dark:bg-zinc-900 rounded-xl p-4 border border-zinc-200 dark:border-zinc-800">
-          <p className="text-sm font-semibold text-zinc-700 dark:text-zinc-300 mb-3 flex items-center gap-2">
-            <TrendingUp className="w-4 h-4" />
-            Alocação por classe
+        <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 p-4">
+          <p className="text-[13px] font-semibold text-zinc-300 mb-3 flex items-center gap-2">
+            <TrendingUp className="w-4 h-4 text-zinc-500" />
+            Alocacao por classe
           </p>
-          <div className="flex h-3 rounded-full overflow-hidden gap-0.5 mb-3">
+          {/* Bar */}
+          <div className="flex h-2.5 rounded-full overflow-hidden gap-px mb-3">
             {byClass.map(c => (
               <div
                 key={c.asset_class}
                 style={{ width: `${c.percentage}%`, backgroundColor: ASSET_CLASS_COLORS[c.asset_class] }}
                 title={`${ASSET_CLASS_LABELS[c.asset_class]}: ${c.percentage.toFixed(1)}%`}
+                className="transition-all"
               />
             ))}
           </div>
-          <div className="flex flex-wrap gap-x-4 gap-y-1.5">
+          {/* Legend */}
+          <div className="flex flex-wrap gap-x-4 gap-y-2">
             {byClass.map(c => (
-              <div key={c.asset_class} className="flex items-center gap-1.5 text-xs">
+              <div key={c.asset_class} className="flex items-center gap-1.5 text-[12px]">
                 <div
-                  className="w-2.5 h-2.5 rounded-sm flex-shrink-0"
+                  className="w-2 h-2 rounded-sm flex-shrink-0"
                   style={{ backgroundColor: ASSET_CLASS_COLORS[c.asset_class] }}
                 />
-                <span className="text-zinc-600 dark:text-zinc-400">
+                <span className="text-zinc-400">
                   {ASSET_CLASS_ICONS[c.asset_class]} {ASSET_CLASS_LABELS[c.asset_class]}
                 </span>
-                <span className="font-semibold text-zinc-800 dark:text-zinc-200">
-                  {c.percentage.toFixed(1)}%
-                </span>
-                <span className="text-zinc-400">{formatBRL(c.totalBRL)}</span>
+                <span className="font-semibold text-zinc-200">{c.percentage.toFixed(1)}%</span>
+                <span className="text-zinc-600">{formatBRL(c.totalBRL)}</span>
               </div>
             ))}
           </div>
         </div>
       )}
 
-      {/* Positions table */}
+      {/* ── Positions table ────────────────────────────────────────────────── */}
       {positions.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-16 text-center">
-          <span className="text-5xl mb-4">📈</span>
-          <p className="text-zinc-500 dark:text-zinc-400 text-sm">
-            Nenhuma posição cadastrada ainda.
-          </p>
+        <div className="flex flex-col items-center justify-center py-20 text-center rounded-xl border border-zinc-800 bg-zinc-900/40">
+          <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-zinc-800">
+            <span className="text-2xl">📈</span>
+          </div>
+          <p className="text-[14px] font-medium text-zinc-300">Nenhuma posicao cadastrada</p>
+          <p className="mt-1 text-[12px] text-zinc-500">Adicione seu primeiro ativo para comecar.</p>
           <button
             onClick={openCreate}
-            className="mt-4 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium transition-colors"
+            className="mt-5 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-[13px] font-semibold transition-colors"
           >
-            Adicionar Primeira Posição
+            Adicionar Primeira Posicao
           </button>
         </div>
       ) : (
-        <div className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 overflow-hidden">
+        <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full">
               {/* Desktop header */}
               <thead className="hidden md:table-header-group">
-                <tr className="border-b border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-800/50">
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">Ativo</th>
-                  <th className="px-3 py-3 text-left text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider hidden lg:table-cell">Classe</th>
-                  <th className="px-3 py-3 text-right text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider hidden lg:table-cell">Qtd</th>
-                  <th className="px-3 py-3 text-right text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider hidden xl:table-cell">Preço Médio</th>
-                  <th className="px-3 py-3 text-right text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider hidden xl:table-cell">Preço Atual</th>
-                  <th className="px-3 py-3 text-right text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">Valor Atual</th>
-                  <th className="px-3 py-3 text-right text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider hidden lg:table-cell">Proventos 12m</th>
-                  <th className="px-3 py-3 text-center text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">Moeda</th>
-                  <th className="px-3 py-3 text-right text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">Resultado</th>
-                  <th className="px-3 py-3 text-left text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider hidden xl:table-cell">Instituição</th>
+                <tr className="border-b border-zinc-800 bg-zinc-800/60">
+                  <th className="px-4 py-3 text-left text-[11px] font-semibold text-zinc-500 uppercase tracking-wider">Ativo</th>
+                  <th className="px-3 py-3 text-left text-[11px] font-semibold text-zinc-500 uppercase tracking-wider hidden lg:table-cell">Classe</th>
+                  <th className="px-3 py-3 text-right text-[11px] font-semibold text-zinc-500 uppercase tracking-wider hidden lg:table-cell">Qtd</th>
+                  <th className="px-3 py-3 text-right text-[11px] font-semibold text-zinc-500 uppercase tracking-wider hidden xl:table-cell">Preco Medio</th>
+                  <th className="px-3 py-3 text-right text-[11px] font-semibold text-zinc-500 uppercase tracking-wider hidden xl:table-cell">Preco Atual</th>
+                  <th className="px-3 py-3 text-right text-[11px] font-semibold text-zinc-500 uppercase tracking-wider">Valor Atual</th>
+                  <th className="px-3 py-3 text-right text-[11px] font-semibold text-zinc-500 uppercase tracking-wider hidden lg:table-cell">Proventos 12m</th>
+                  <th className="px-3 py-3 text-center text-[11px] font-semibold text-zinc-500 uppercase tracking-wider">Moeda</th>
+                  <th className="px-3 py-3 text-right text-[11px] font-semibold text-zinc-500 uppercase tracking-wider">Resultado</th>
+                  <th className="px-3 py-3 text-left text-[11px] font-semibold text-zinc-500 uppercase tracking-wider hidden xl:table-cell">Instituicao</th>
                   <th className="px-3 py-3 w-24" />
                 </tr>
               </thead>
 
               {/* Mobile header */}
               <thead className="md:hidden">
-                <tr className="border-b border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-800/50">
-                  <th className="px-4 py-2.5 text-left text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">
-                    {positions.length} {positions.length === 1 ? "posição" : "posições"}
+                <tr className="border-b border-zinc-800 bg-zinc-800/60">
+                  <th className="px-4 py-2.5 text-left text-[11px] font-semibold text-zinc-500 uppercase tracking-wider">
+                    {positions.length} {positions.length === 1 ? "posicao" : "posicoes"}
                   </th>
                 </tr>
               </thead>
@@ -306,7 +284,6 @@ export function InvestmentsClient({
         </div>
       )}
 
-      {/* Modal */}
       {modalOpen && (
         <InvestmentFormModal
           editing={editing}

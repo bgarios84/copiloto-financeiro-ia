@@ -1,8 +1,8 @@
 "use client";
 
 /**
- * InvestmentItem — linha de tabela de uma posição de investimento
- * Sprint 7.1   — badge "ao vivo" / "manual" no preço atual
+ * InvestmentItem — Sprint 10.1 premium dark redesign
+ * Sprint 7.1   — badge "ao vivo" / "manual" no preco atual
  * Sprint 7.1.1 — coluna dedicada de proventos 12m por ativo
  */
 
@@ -81,10 +81,9 @@ export function InvestmentItem({ position, rateMap, b3QuoteMap, dividendMap, onE
   const [confirmDelete, setConfirmDelete] = useState(false);
 
   const label = ASSET_CLASS_LABELS[position.asset_class] ?? position.asset_class;
-  const icon  = ASSET_CLASS_ICONS[position.asset_class]  ?? "💰";
+  const icon  = ASSET_CLASS_ICONS[position.asset_class]  ?? "\xf4b0";
   const color = ASSET_CLASS_COLORS[position.asset_class] ?? "#6B7280";
 
-  // Valores efetivos (B3 ao vivo ou manual)
   const effPrice = effectiveCurrentPrice(position, b3QuoteMap);
   const effValue = effectiveCurrentValue(position, b3QuoteMap);
   const live     = isLiveQuote(position, b3QuoteMap);
@@ -95,7 +94,6 @@ export function InvestmentItem({ position, rateMap, b3QuoteMap, dividendMap, onE
 
   const gl = gainLoss(effValue, position.acquisition_value);
 
-  // Proventos do ativo
   const divSummary  = position.ticker ? (dividendMap[position.ticker] ?? null) : null;
   const accumulated = divSummary ? userAccumulatedDividends(divSummary, position.quantity) : null;
   const nextEvent   = divSummary?.nextEvent ?? null;
@@ -107,63 +105,61 @@ export function InvestmentItem({ position, rateMap, b3QuoteMap, dividendMap, onE
     onDelete(position);
   };
 
-  // Badge de fonte do preço
+  // Badge de fonte do preco
   const priceBadge = live ? (
-    <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold text-emerald-600 dark:text-emerald-400">
+    <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold text-emerald-400">
       <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block" />
       ao vivo
     </span>
   ) : (
-    <span className="text-[10px] text-zinc-400 dark:text-zinc-500">manual</span>
+    <span className="text-[10px] text-zinc-600">manual</span>
   );
 
-  // Célula de proventos (desktop)
+  // Celula de proventos (desktop)
   const dividendCell = hasDivData ? (
     <div className="flex flex-col items-end gap-0.5">
       {dy !== null ? (
-        <span className="text-xs font-semibold text-violet-600 dark:text-violet-400">
+        <span className="text-[12px] font-semibold text-violet-400">
           {dy.toFixed(2)}% DY
         </span>
       ) : (
-        <span className="text-xs text-zinc-400">—</span>
+        <span className="text-[12px] text-zinc-600">—</span>
       )}
       {accumulated !== null && accumulated > 0 && (
-        <span className="text-[11px] text-zinc-500 dark:text-zinc-400">
-          {fmtBRL(accumulated)}
-        </span>
+        <span className="text-[11px] text-zinc-500">{fmtBRL(accumulated)}</span>
       )}
       {nextEvent ? (
-        <span className="text-[10px] text-zinc-400 dark:text-zinc-500 whitespace-nowrap">
+        <span className="text-[10px] text-zinc-600 whitespace-nowrap">
           {DIVIDEND_EVENT_LABELS[nextEvent.event_type]} {fmtDate(nextEvent.payment_date)}
         </span>
       ) : (
-        <span className="text-[10px] text-zinc-300 dark:text-zinc-600">Sem próx.</span>
+        <span className="text-[10px] text-zinc-700">Sem prox.</span>
       )}
     </div>
   ) : (
-    <span className="text-zinc-300 dark:text-zinc-600 text-sm">—</span>
+    <span className="text-zinc-700 text-[13px]">—</span>
   );
 
   return (
     <>
       {/* ── Desktop row (md+) ─────────────────────────────────────────────── */}
-      <tr className="hidden md:table-row group hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors border-b border-zinc-100 dark:border-zinc-800 last:border-0">
+      <tr className="hidden md:table-row group hover:bg-zinc-800/40 transition-colors border-b border-zinc-800 last:border-0">
 
         {/* Ativo */}
         <td className="px-4 py-3 min-w-[180px]">
           <div className="flex items-center gap-2.5">
             <div
               className="w-8 h-8 rounded-lg flex items-center justify-center text-sm flex-shrink-0"
-              style={{ backgroundColor: color + "20" }}
+              style={{ backgroundColor: color + "22" }}
             >
               {icon}
             </div>
             <div className="min-w-0">
-              <p className="text-sm font-semibold text-zinc-900 dark:text-zinc-100 truncate max-w-[140px]">
+              <p className="text-[13px] font-semibold text-zinc-100 truncate max-w-[140px]">
                 {position.asset_name}
               </p>
               {position.ticker && (
-                <p className="text-xs font-mono text-zinc-400 dark:text-zinc-500 uppercase">
+                <p className="text-[11px] font-mono text-zinc-500 uppercase">
                   {position.ticker}
                 </p>
               )}
@@ -174,7 +170,7 @@ export function InvestmentItem({ position, rateMap, b3QuoteMap, dividendMap, onE
         {/* Classe */}
         <td className="px-3 py-3 hidden lg:table-cell">
           <span
-            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium whitespace-nowrap"
+            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium whitespace-nowrap"
             style={{ backgroundColor: color + "18", color }}
           >
             {label}
@@ -182,28 +178,28 @@ export function InvestmentItem({ position, rateMap, b3QuoteMap, dividendMap, onE
         </td>
 
         {/* Qtd */}
-        <td className="px-3 py-3 text-right text-sm text-zinc-600 dark:text-zinc-400 hidden lg:table-cell">
+        <td className="px-3 py-3 text-right text-[13px] text-zinc-400 hidden lg:table-cell">
           {fmtNum(position.quantity, { minimumFractionDigits: 0, maximumFractionDigits: 8 })}
         </td>
 
-        {/* Preço médio */}
-        <td className="px-3 py-3 text-right text-sm text-zinc-600 dark:text-zinc-400 hidden xl:table-cell">
+        {/* Preco medio */}
+        <td className="px-3 py-3 text-right text-[13px] text-zinc-400 hidden xl:table-cell">
           {position.average_price !== null
             ? fmtCurrency(position.average_price, position.currency)
             : "—"}
         </td>
 
-        {/* Preço atual */}
+        {/* Preco atual */}
         <td className="px-3 py-3 text-right hidden xl:table-cell">
           {effPrice !== null ? (
             <div className="flex flex-col items-end">
-              <span className="text-sm text-zinc-700 dark:text-zinc-300">
+              <span className="text-[13px] text-zinc-300">
                 {fmtCurrency(effPrice, position.currency)}
               </span>
               {priceBadge}
             </div>
           ) : (
-            <span className="text-zinc-400 text-sm">—</span>
+            <span className="text-zinc-600 text-[13px]">—</span>
           )}
         </td>
 
@@ -211,20 +207,20 @@ export function InvestmentItem({ position, rateMap, b3QuoteMap, dividendMap, onE
         <td className="px-3 py-3 text-right">
           {effValue !== null ? (
             <div>
-              <p className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+              <p className="text-[13px] font-semibold text-zinc-100">
                 {fmtCurrency(effValue, position.currency)}
               </p>
               {position.currency !== "BRL" && (
-                <p className="text-xs mt-0.5">
+                <p className="text-[11px] mt-0.5">
                   {valueBRL !== null
-                    ? <span className="text-zinc-400 dark:text-zinc-500">{fmtBRL(valueBRL)}</span>
+                    ? <span className="text-zinc-500">{fmtBRL(valueBRL)}</span>
                     : <span className="text-amber-500">sem cotacao</span>
                   }
                 </p>
               )}
             </div>
           ) : (
-            <span className="text-zinc-400 text-sm">—</span>
+            <span className="text-zinc-600 text-[13px]">—</span>
           )}
         </td>
 
@@ -234,8 +230,8 @@ export function InvestmentItem({ position, rateMap, b3QuoteMap, dividendMap, onE
         </td>
 
         {/* Moeda */}
-        <td className="px-3 py-3 text-center hidden md:table-cell">
-          <span className="text-xs font-mono font-bold text-zinc-500 dark:text-zinc-400">
+        <td className="px-3 py-3 text-center">
+          <span className="text-[11px] font-mono font-bold text-zinc-500">
             {position.currency}
           </span>
         </td>
@@ -243,45 +239,45 @@ export function InvestmentItem({ position, rateMap, b3QuoteMap, dividendMap, onE
         {/* Resultado */}
         <td className="px-3 py-3 text-right">
           {gl !== null ? (
-            <div className={`flex flex-col items-end text-sm font-medium ${
-              gl.abs >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-500 dark:text-red-400"
+            <div className={`flex flex-col items-end text-[13px] font-medium ${
+              gl.abs >= 0 ? "text-emerald-400" : "text-red-400"
             }`}>
               <span className="flex items-center gap-1">
                 {gl.abs > 0
                   ? <TrendingUp   className="w-3.5 h-3.5" />
                   : gl.abs < 0
                     ? <TrendingDown className="w-3.5 h-3.5" />
-                    : <Minus        className="w-3.5 h-3.5 text-zinc-400" />
+                    : <Minus        className="w-3.5 h-3.5 text-zinc-500" />
                 }
                 {gl.pct >= 0 ? "+" : ""}{gl.pct.toFixed(2)}%
               </span>
-              <span className="text-xs opacity-80">
+              <span className="text-[11px] opacity-75">
                 {gl.abs >= 0 ? "+" : ""}{fmtCurrency(gl.abs, position.currency)}
               </span>
             </div>
           ) : (
-            <span className="text-zinc-400 text-sm">—</span>
+            <span className="text-zinc-600 text-[13px]">—</span>
           )}
         </td>
 
-        {/* Instituição */}
-        <td className="px-3 py-3 text-sm text-zinc-500 dark:text-zinc-400 hidden xl:table-cell max-w-[120px]">
+        {/* Instituicao */}
+        <td className="px-3 py-3 text-[13px] text-zinc-500 hidden xl:table-cell max-w-[120px]">
           <span className="truncate block">{position.institution ?? "—"}</span>
         </td>
 
-        {/* Ações */}
+        {/* Acoes */}
         <td className="px-3 py-3">
           <div className="flex items-center gap-1 justify-end opacity-0 group-hover:opacity-100 transition-opacity">
             <Link
               href={`/investments/${position.id}/trades`}
-              className="p-1.5 rounded-lg hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+              className="p-1.5 rounded-lg hover:bg-zinc-700 text-zinc-500 hover:text-blue-400 transition-colors"
               title="Ver operacoes"
             >
               <ClipboardList className="w-3.5 h-3.5" />
             </Link>
             <button
               onClick={() => onEdit(position)}
-              className="p-1.5 rounded-lg hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 transition-colors"
+              className="p-1.5 rounded-lg hover:bg-zinc-700 text-zinc-500 hover:text-zinc-200 transition-colors"
               title="Editar"
             >
               <Pencil className="w-3.5 h-3.5" />
@@ -291,8 +287,8 @@ export function InvestmentItem({ position, rateMap, b3QuoteMap, dividendMap, onE
               onBlur={() => setConfirmDelete(false)}
               className={`p-1.5 rounded-lg transition-colors ${
                 confirmDelete
-                  ? "bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400"
-                  : "hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-400 hover:text-red-500"
+                  ? "bg-red-500/20 text-red-400"
+                  : "hover:bg-zinc-700 text-zinc-500 hover:text-red-400"
               }`}
               title={confirmDelete ? "Confirmar exclusao" : "Excluir"}
             >
@@ -303,46 +299,45 @@ export function InvestmentItem({ position, rateMap, b3QuoteMap, dividendMap, onE
       </tr>
 
       {/* ── Mobile row (< md) ─────────────────────────────────────────────── */}
-      <tr className="md:hidden border-b border-zinc-100 dark:border-zinc-800 last:border-0">
+      <tr className="md:hidden border-b border-zinc-800 last:border-0">
         <td colSpan={11} className="px-4 py-3">
           <div className="flex items-center gap-3">
             <div
               className="w-9 h-9 rounded-lg flex items-center justify-center text-base flex-shrink-0"
-              style={{ backgroundColor: color + "20" }}
+              style={{ backgroundColor: color + "22" }}
             >
               {icon}
             </div>
 
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-semibold text-zinc-900 dark:text-zinc-100 truncate">
+              <p className="text-[13px] font-semibold text-zinc-100 truncate">
                 {position.ticker
-                  ? <><span className="font-mono">{position.ticker}</span> · {position.asset_name}</>
+                  ? <><span className="font-mono text-zinc-300">{position.ticker}</span> <span className="text-zinc-500">·</span> {position.asset_name}</>
                   : position.asset_name
                 }
               </p>
               <span
-                className="inline-flex text-xs px-1.5 py-0.5 rounded-full mt-0.5"
+                className="inline-flex text-[11px] px-1.5 py-0.5 rounded-full mt-0.5"
                 style={{ backgroundColor: color + "18", color }}
               >
                 {label}
               </span>
-              {/* Proventos mobile */}
               {hasDivData && dy !== null && (
-                <p className="text-[10px] font-semibold text-violet-600 dark:text-violet-400 mt-0.5">
+                <p className="text-[10px] font-semibold text-violet-400 mt-0.5">
                   DY {dy.toFixed(2)}%
-                  {nextEvent ? ` · Próx. ${fmtDate(nextEvent.payment_date)}` : ""}
+                  {nextEvent ? ` · Prox. ${fmtDate(nextEvent.payment_date)}` : ""}
                 </p>
               )}
             </div>
 
             <div className="text-right flex-shrink-0">
-              <p className="text-sm font-bold text-zinc-900 dark:text-zinc-100">
+              <p className="text-[13px] font-bold text-zinc-100">
                 {effValue !== null ? fmtCurrency(effValue, position.currency) : "—"}
               </p>
               <div className="flex items-center justify-end gap-1 mt-0.5">
                 {gl !== null && (
-                  <p className={`text-xs font-medium ${
-                    gl.abs >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-500 dark:text-red-400"
+                  <p className={`text-[11px] font-medium ${
+                    gl.abs >= 0 ? "text-emerald-400" : "text-red-400"
                   }`}>
                     {gl.pct >= 0 ? "+" : ""}{gl.pct.toFixed(2)}%
                   </p>
@@ -350,21 +345,21 @@ export function InvestmentItem({ position, rateMap, b3QuoteMap, dividendMap, onE
                 {priceBadge}
               </div>
               {accumulated !== null && accumulated > 0 && (
-                <p className="text-[10px] text-zinc-400 mt-0.5">{fmtBRL(accumulated)}</p>
+                <p className="text-[10px] text-zinc-500 mt-0.5">{fmtBRL(accumulated)}</p>
               )}
             </div>
 
             <div className="flex flex-col gap-1 flex-shrink-0">
               <Link
                 href={`/investments/${position.id}/trades`}
-                className="p-1.5 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-400 hover:text-blue-600 transition-colors"
+                className="p-1.5 rounded-lg hover:bg-zinc-800 text-zinc-500 hover:text-blue-400 transition-colors"
                 title="Ver operacoes"
               >
                 <ClipboardList className="w-3.5 h-3.5" />
               </Link>
               <button
                 onClick={() => onEdit(position)}
-                className="p-1.5 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-400 transition-colors"
+                className="p-1.5 rounded-lg hover:bg-zinc-800 text-zinc-500 hover:text-zinc-200 transition-colors"
               >
                 <Pencil className="w-3.5 h-3.5" />
               </button>
@@ -373,8 +368,8 @@ export function InvestmentItem({ position, rateMap, b3QuoteMap, dividendMap, onE
                 onBlur={() => setConfirmDelete(false)}
                 className={`p-1.5 rounded-lg transition-colors ${
                   confirmDelete
-                    ? "bg-red-100 dark:bg-red-900/30 text-red-600"
-                    : "hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-400 hover:text-red-500"
+                    ? "bg-red-500/20 text-red-400"
+                    : "hover:bg-zinc-800 text-zinc-500 hover:text-red-400"
                 }`}
               >
                 <Trash2 className="w-3.5 h-3.5" />
