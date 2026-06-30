@@ -50,8 +50,10 @@ import { ASSET_CLASS_LABELS, ASSET_CLASS_COLORS } from "@/types/investment";
 import { B3_QUOTED_CLASSES }    from "@/types/b3-market";
 import type { B3QuoteMap }      from "@/types/b3-market";
 import type { FxRateMap }       from "@/types/fx-rate";
-import type { HealthSnapshot }  from "@/lib/financial-health";
-import { FinancialHealthCard }  from "@/components/dashboard/FinancialHealthCard";
+import type { HealthSnapshot }    from "@/lib/financial-health";
+import { FinancialHealthCard }    from "@/components/dashboard/FinancialHealthCard";
+import type { FinancialInsight }  from "@/lib/financial-insights";
+import { FinancialInsightsCard }  from "@/components/dashboard/FinancialInsightsCard";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -229,13 +231,14 @@ function buildMetrics(data: DashboardData): ExMetrics {
 // ═══════════════════════════════════════════════════════════════
 
 interface Props {
-  data:            DashboardData;
-  error:           string | null;
-  radarInsights:   RadarInsight[];
-  healthSnapshot:  HealthSnapshot | null;
+  data:               DashboardData;
+  error:              string | null;
+  radarInsights:      RadarInsight[];
+  healthSnapshot:     HealthSnapshot | null;
+  financialInsights:  FinancialInsight[];
 }
 
-export function DashboardClient({ data, error, radarInsights, healthSnapshot }: Props) {
+export function DashboardClient({ data, error, radarInsights, healthSnapshot, financialInsights }: Props) {
   const { investments, manualAssets } = data.patrimonio;
   const hasData = data.summary !== null || investments.length > 0 || manualAssets.length > 0;
 
@@ -282,9 +285,14 @@ export function DashboardClient({ data, error, radarInsights, healthSnapshot }: 
         <RadarCard className="lg:col-span-7" insights={radarInsights} />
       </div>
 
-      {/* 7. Saúde Financeira */}
-      {healthSnapshot && (
-        <FinancialHealthCard snapshot={healthSnapshot} />
+      {/* 7. Saúde Financeira + Insights */}
+      {(healthSnapshot || financialInsights.length > 0) && (
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+          {healthSnapshot && (
+            <FinancialHealthCard snapshot={healthSnapshot} className="lg:col-span-5" />
+          )}
+          <FinancialInsightsCard insights={financialInsights} className="lg:col-span-7" />
+        </div>
       )}
     </div>
   );
