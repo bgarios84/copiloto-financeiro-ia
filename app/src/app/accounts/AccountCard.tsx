@@ -13,6 +13,7 @@ import {
   Coins,
   Building2,
   Briefcase,
+  RefreshCw,
 } from "lucide-react";
 import { cn, formatCurrency } from "@/lib/utils";
 import type { FinancialAccount } from "@/types/financial-account";
@@ -34,21 +35,31 @@ const ICON_MAP: Record<string, React.ElementType> = {
 // ── Props ─────────────────────────────────────────────────────────────────────
 
 interface AccountCardProps {
-  account: FinancialAccount;
-  onEdit: (account: FinancialAccount) => void;
-  onDelete: (id: string) => void;
+  account:   FinancialAccount;
+  onEdit:    (account: FinancialAccount) => void;
+  onDelete:  (id: string) => void;
+  onSync?:   (connectionId: string) => void;
+  syncing?:  boolean;
   deleting?: boolean;
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
-export function AccountCard({ account, onEdit, onDelete, deleting = false }: AccountCardProps) {
+export function AccountCard({
+  account,
+  onEdit,
+  onDelete,
+  onSync,
+  syncing  = false,
+  deleting = false,
+}: AccountCardProps) {
   const [confirmDelete, setConfirmDelete] = React.useState(false);
 
   const color = account.color ?? "#6366F1";
-  const Icon = ICON_MAP[account.icon ?? "wallet"] ?? Wallet;
-  const typeLabel = ACCOUNT_TYPE_LABELS[account.type] ?? account.type;
+  const Icon  = ICON_MAP[account.icon ?? "wallet"] ?? Wallet;
+  const typeLabel      = ACCOUNT_TYPE_LABELS[account.type] ?? account.type;
   const currencySymbol = account.currency === "BRL" ? "R$" : account.currency;
+  const isOF           = Boolean(account.of_connection_id);
 
   function handleDeleteClick() {
     if (confirmDelete) {
@@ -59,7 +70,6 @@ export function AccountCard({ account, onEdit, onDelete, deleting = false }: Acc
     }
   }
 
-  // reset confirm on blur
   React.useEffect(() => {
     if (!confirmDelete) return;
     const t = setTimeout(() => setConfirmDelete(false), 4000);
@@ -71,7 +81,7 @@ export function AccountCard({ account, onEdit, onDelete, deleting = false }: Acc
       className={cn(
         "group relative rounded-xl border border-border bg-card p-5 transition-all duration-200",
         "shadow-[var(--shadow-card)] hover:shadow-[var(--shadow-card-hover)]",
-        deleting && "opacity-50 pointer-events-none"
+        (deleting || syncing) && "opacity-60 pointer-events-none"
       )}
     >
       {/* Accent bar */}
@@ -93,8 +103,15 @@ export function AccountCard({ account, onEdit, onDelete, deleting = false }: Acc
         {/* Info */}
         <div className="min-w-0 flex-1">
           <div className="flex items-start justify-between gap-2">
-            <div className="min-w-0">
-              <p className="truncate text-[14px] font-semibold text-foreground">{account.name}</p>
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2 flex-wrap">
+                <p className="truncate text-[14px] font-semibold text-foreground">{account.name}</p>
+                {isOF && (
+                  <span className="inline-flex items-center rounded-full bg-blue-500/10 px-2 py-0.5 text-[10px] font-semibold text-blue-400 border border-blue-500/20">
+                    Open Finance
+                  </span>
+                )}
+              </div>
               <p className="text-[12px] text-muted-foreground">
                 {account.institution?.name ?? "Sem instituição"} · {typeLabel}
               </p>
@@ -102,9 +119,21 @@ export function AccountCard({ account, onEdit, onDelete, deleting = false }: Acc
 
             {/* Actions */}
             <div className="flex shrink-0 items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+              {/* Sync button — apenas contas OF */}
+              {isOF && onSync && (
+                <button
+                  onClick={() => onSync(account.of_connection_id!)}
+                  disabled={syncing || deleting}
+                  aria-label="Sincronizar conta"
+                  className="flex h-7 w-7 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-blue-500/10 hover:text-blue-400"
+                >
+                  <RefreshCw className={cn("h-3.5 w-3.5", syncing && "animate-spin")} />
+                </button>
+              )}
+
               <button
                 onClick={() => onEdit(account)}
-                disabled={deleting}
+                disabled={deleting || syncing}
                 aria-label="Editar conta"
                 className="flex h-7 w-7 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
               >
@@ -113,7 +142,7 @@ export function AccountCard({ account, onEdit, onDelete, deleting = false }: Acc
 
               <button
                 onClick={handleDeleteClick}
-                disabled={deleting}
+                disabled={deleting || syncing}
                 aria-label={confirmDelete ? "Confirmar exclusão" : "Excluir conta"}
                 className={cn(
                   "flex h-7 w-7 items-center justify-center rounded-lg transition-colors",
@@ -153,8 +182,16 @@ export function AccountCard({ account, onEdit, onDelete, deleting = false }: Acc
             </span>
           </div>
 
+          {/* Syncing indicator */}
+          {syncing && (
+            <p className="mt-2 flex items-center gap-1.5 text-[11px] text-blue-400">
+              <Loader2 className="h-3 w-3 animate-spin" />
+              Sincronizando...
+            </p>
+          )}
+
           {/* Confirm delete hint */}
-          {confirmDelete && (
+          {confirmDelete && !syncing && (
             <p className="mt-2 text-[11px] text-destructive">
               Clique novamente para confirmar a exclusão.
             </p>
