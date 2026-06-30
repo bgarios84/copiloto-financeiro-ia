@@ -35,6 +35,9 @@ export interface FinancialAccount {
   created_at: string;
   updated_at: string;
   deleted_at: string | null;
+  // Open Finance
+  of_connection_id: string | null;
+  of_account_id:    string | null;
   // joined
   institution?: Institution | null;
 }
@@ -94,6 +97,5 @@ export const CURRENCIES = [
   { value: "BTC", label: "₿ — Bitcoin"             },
 ] as const;
 
-// ── Service response ──────────────────────────────────────────────────────────
-
+// ── Service response ─────────────────────────────────────────────
 export type { ServiceResult } from "./common";

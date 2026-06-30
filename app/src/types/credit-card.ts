@@ -27,6 +27,9 @@ export interface CreditCard {
   created_at: string;
   updated_at: string;
   deleted_at: string | null;
+  // Open Finance
+  of_connection_id: string | null;
+  of_account_id:    string | null;
   // joined
   institution?: Institution | null;
 }
@@ -84,6 +87,5 @@ export const DAY_OPTIONS = Array.from({ length: 31 }, (_, i) => ({
   label: "Dia " + String(i + 1),
 }));
 
-// ── Service response ──────────────────────────────────────────────────────────
-
+// ── Service response ─────────────────────────────────────────────
 export type { ServiceResult } from "./common";
