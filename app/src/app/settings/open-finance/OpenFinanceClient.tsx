@@ -2,11 +2,8 @@
 
 /**
  * Open Finance — Connection UI
- * Sprint 9.2
- *
- * Usa react-pluggy-connect (widget React oficial da Pluggy).
- * Instalar antes de rodar: npm install react-pluggy-connect
- * Docs: https://www.npmjs.com/package/react-pluggy-connect
+ * Sprint 9.2 — Connection Flow
+ * Sprint 9.3B — Sync Button
  */
 
 import * as React from "react";
@@ -15,6 +12,7 @@ import {
   getConnectToken,
   saveConnection,
   deleteConnection,
+  syncConnectionAccounts,
 } from "@/services/open-finance";
 import type { OFConnectionWithInstitution } from "@/services/open-finance";
 import { OPEN_FINANCE_CONNECTION_STATUS_LABELS } from "@/types/open-finance";
@@ -67,12 +65,13 @@ export function OpenFinanceClient({ initialConnections, error }: Props) {
   // connectToken definido apenas enquanto o widget deve estar visivel.
   const [connectToken, setConnectToken] = React.useState<string | null>(null);
 
-  const [connecting, setConnecting] = React.useState(false);
-  const [feedback, setFeedback] = React.useState<{
+  const [connecting,  setConnecting]  = React.useState(false);
+  const [syncingId,   setSyncingId]   = React.useState<string | null>(null);
+  const [deletingId,  setDeletingId]  = React.useState<string | null>(null);
+  const [feedback,    setFeedback]    = React.useState<{
     type: "success" | "error";
     message: string;
   } | null>(null);
-  const [deletingId, setDeletingId] = React.useState<string | null>(null);
 
   // ── Abrir widget ────────────────────────────────────────────────────────────
 
@@ -90,7 +89,6 @@ export function OpenFinanceClient({ initialConnections, error }: Props) {
       return;
     }
 
-    // Ao definir o token, o <PluggyConnect> abaixo e renderizado.
     setConnectToken(tokenResult.data.connectToken);
     setConnecting(false);
   }
@@ -109,9 +107,7 @@ export function OpenFinanceClient({ initialConnections, error }: Props) {
       });
     } else {
       setConnections((prev) => {
-        const exists = prev.find(
-          (c) => c.provider_item_id === data.item.id,
-        );
+        const exists = prev.find((c) => c.provider_item_id === data.item.id);
         if (exists) return prev;
         return [saveResult.data as OFConnectionWithInstitution, ...prev];
       });
@@ -124,13 +120,55 @@ export function OpenFinanceClient({ initialConnections, error }: Props) {
     setConnecting(false);
   }
 
-  function handleError(err: { message: string }) {
+  function handleWidgetError(err: { message: string }) {
     setConnectToken(null);
     setConnecting(false);
     setFeedback({
       type:    "error",
       message: err.message ?? "Erro no widget de conexao.",
     });
+  }
+
+  // ── Sincronizar contas ──────────────────────────────────────────────────────
+
+  async function handleSync(connectionId: string) {
+    setSyncingId(connectionId);
+    setFeedback(null);
+
+    // Reflete status "syncing" imediatamente na UI
+    setConnections((prev) =>
+      prev.map((c) =>
+        c.id === connectionId ? { ...c, status: "syncing" } : c,
+      ),
+    );
+
+    const result = await syncConnectionAccounts(connectionId);
+
+    if (result.error) {
+      setFeedback({ type: "error", message: result.error });
+      // Reverte status visual para o estado anterior
+      setConnections((prev) =>
+        prev.map((c) =>
+          c.id === connectionId ? { ...c, status: "error" } : c,
+        ),
+      );
+    } else {
+      const { accountsSynced, errors } = result.data;
+      const msg =
+        errors.length === 0
+          ? `${accountsSynced} conta(s) sincronizada(s) com sucesso.`
+          : `${accountsSynced} conta(s) sincronizada(s). Avisos: ${errors[0]}`;
+      setFeedback({ type: errors.length === 0 ? "success" : "error", message: msg });
+      setConnections((prev) =>
+        prev.map((c) =>
+          c.id === connectionId
+            ? { ...c, status: "connected", last_synced_at: new Date().toISOString() }
+            : c,
+        ),
+      );
+    }
+
+    setSyncingId(null);
   }
 
   // ── Remover conexao ─────────────────────────────────────────────────────────
@@ -149,16 +187,18 @@ export function OpenFinanceClient({ initialConnections, error }: Props) {
 
   // ── Render ──────────────────────────────────────────────────────────────────
 
+  const isBusy = connecting || syncingId !== null || deletingId !== null;
+
   return (
     <>
-      {/* Widget react-pluggy-connect — renderizado apenas quando connectToken esta definido */}
+      {/* Widget Pluggy — visivel apenas quando connectToken esta definido */}
       {connectToken && (
         <PluggyConnect
           connectToken={connectToken}
           language="pt"
           includeSandbox={process.env.NODE_ENV !== "production"}
           onSuccess={handleSuccess}
-          onError={handleError}
+          onError={handleWidgetError}
           onClose={handleClose}
         />
       )}
@@ -183,10 +223,10 @@ export function OpenFinanceClient({ initialConnections, error }: Props) {
         </div>
       )}
 
-      {/* Botao de conexao */}
+      {/* Botao adicionar conexao */}
       <button
         onClick={handleConnect}
-        disabled={connecting || connectToken !== null}
+        disabled={isBusy || connectToken !== null}
         className="mb-8 flex items-center gap-2 rounded-lg bg-blue-600 px-5 py-2.5 text-[13px] font-semibold text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-50"
       >
         {connecting ? (
@@ -196,13 +236,7 @@ export function OpenFinanceClient({ initialConnections, error }: Props) {
           </>
         ) : (
           <>
-            <svg
-              className="h-4 w-4"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              strokeWidth={2}
-            >
+            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
             </svg>
             Conectar banco
@@ -220,47 +254,74 @@ export function OpenFinanceClient({ initialConnections, error }: Props) {
         </div>
       ) : (
         <ul className="space-y-3">
-          {connections.map((conn) => (
-            <li
-              key={conn.id}
-              className="flex items-center justify-between rounded-xl border border-zinc-800 bg-zinc-900/50 px-4 py-3"
-            >
-              <div className="flex items-center gap-3">
-                {conn.institution?.logo_url ? (
-                  <img
-                    src={conn.institution.logo_url}
-                    alt={conn.institution.short_name}
-                    className="h-8 w-8 rounded-full object-contain"
-                  />
-                ) : (
-                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-zinc-800 text-[11px] text-zinc-400">
-                    {(conn.institution?.short_name ?? "?")[0]}
-                  </div>
-                )}
-                <div>
-                  <p className="text-[13px] font-medium text-white">
-                    {conn.institution?.name ?? "Instituicao desconhecida"}
-                  </p>
-                  <p className="text-[11px] text-zinc-500">
-                    Conectado em{" "}
-                    {new Date(conn.created_at).toLocaleDateString("pt-BR")}
-                  </p>
-                </div>
-              </div>
+          {connections.map((conn) => {
+            const isSyncing  = syncingId  === conn.id;
+            const isDeleting = deletingId === conn.id;
 
-              <div className="flex items-center gap-3">
-                <StatusBadge status={conn.status} />
-                <button
-                  onClick={() => handleDelete(conn.id)}
-                  disabled={deletingId === conn.id}
-                  className="text-[12px] text-zinc-500 transition hover:text-red-400 disabled:opacity-40"
-                  title="Desconectar"
-                >
-                  {deletingId === conn.id ? "..." : "Desconectar"}
-                </button>
-              </div>
-                 </li>
-          ))}
+            return (
+              <li
+                key={conn.id}
+                className="flex items-center justify-between rounded-xl border border-zinc-800 bg-zinc-900/50 px-4 py-3"
+              >
+                {/* Info da instituicao */}
+                <div className="flex items-center gap-3">
+                  {conn.institution?.logo_url ? (
+                    <img
+                      src={conn.institution.logo_url}
+                      alt={conn.institution.short_name}
+                      className="h-8 w-8 rounded-full object-contain"
+                    />
+                  ) : (
+                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-zinc-800 text-[11px] text-zinc-400">
+                      {(conn.institution?.short_name ?? "?")[0]}
+                    </div>
+                  )}
+                  <div>
+                    <p className="text-[13px] font-medium text-white">
+                      {conn.institution?.name ?? "Instituicao desconhecida"}
+                    </p>
+                    <p className="text-[11px] text-zinc-500">
+                      {conn.last_synced_at
+                        ? `Sincronizado em ${new Date(conn.last_synced_at).toLocaleString("pt-BR")}`
+                        : `Conectado em ${new Date(conn.created_at).toLocaleDateString("pt-BR")}`}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Acoes */}
+                <div className="flex items-center gap-3">
+                  <StatusBadge status={conn.status} />
+
+                  {/* Botao Sincronizar */}
+                  <button
+                    onClick={() => handleSync(conn.id)}
+                    disabled={isBusy}
+                    title="Sincronizar contas"
+                    className="flex items-center gap-1 text-[12px] text-zinc-400 transition hover:text-blue-400 disabled:opacity-40"
+                  >
+                    {isSyncing ? (
+                      <span className="h-3 w-3 animate-spin rounded-full border-2 border-zinc-500 border-t-blue-400" />
+                    ) : (
+                      <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                      </svg>
+                    )}
+                    {isSyncing ? "Sincronizando..." : "Sincronizar"}
+                  </button>
+
+                  {/* Botao Desconectar */}
+                  <button
+                    onClick={() => handleDelete(conn.id)}
+                    disabled={isBusy}
+                    title="Desconectar"
+                    className="text-[12px] text-zinc-500 transition hover:text-red-400 disabled:opacity-40"
+                  >
+                    {isDeleting ? "..." : "Desconectar"}
+                  </button>
+                </div>
+              </li>
+            );
+          })}
         </ul>
       )}
     </>

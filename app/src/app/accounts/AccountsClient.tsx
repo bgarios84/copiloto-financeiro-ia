@@ -8,6 +8,7 @@ import { Loading } from "@/components/feedback/Loading";
 import { deleteAccount } from "@/services/financial-account";
 import { AccountCard } from "./AccountCard";
 import { AccountFormModal } from "./AccountFormModal";
+import { OpenFinanceBanner } from "./OpenFinanceBanner";
 import type { FinancialAccount, Institution } from "@/types/financial-account";
 import { ACCOUNT_TYPE_LABELS } from "@/types/financial-account";
 
@@ -152,6 +153,9 @@ export function AccountsClient({ initialAccounts, institutions }: AccountsClient
           Nova conta
         </button>
       </div>
+
+      {/* Open Finance — conectar banco automaticamente */}
+      <OpenFinanceBanner />
 
       {/* Summary cards */}
       {accounts.length > 0 && (
