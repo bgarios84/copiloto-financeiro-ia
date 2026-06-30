@@ -156,6 +156,7 @@ export function OpenFinanceClient({ initialConnections, error }: Props) {
         <PluggyConnect
           connectToken={connectToken}
           language="pt"
+          includeSandbox={process.env.NODE_ENV !== "production"}
           onSuccess={handleSuccess}
           onError={handleError}
           onClose={handleClose}
@@ -258,7 +259,7 @@ export function OpenFinanceClient({ initialConnections, error }: Props) {
                   {deletingId === conn.id ? "..." : "Desconectar"}
                 </button>
               </div>
-            </li>
+                 </li>
           ))}
         </ul>
       )}
