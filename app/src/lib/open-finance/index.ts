@@ -1,40 +1,41 @@
 /**
  * Open Finance — Provider Factory
- * Sprint 9.1 — Open Finance Foundation
+ * Sprint 9.1C — Provider Foundation
  *
- * Retorna a implementacao do provider configurada via variavel de ambiente.
- * A camada de servico importa apenas esta funcao — nunca o provider diretamente.
+ * Ponto de entrada publico da camada de provider.
+ * A camada de servico importa apenas daqui — nunca do provider diretamente.
  *
  * Variavel de ambiente:
  *   OPEN_FINANCE_PROVIDER=pluggy  (default)
- *   OPEN_FINANCE_PROVIDER=belvo
  */
 
 import type { OpenFinanceProvider } from "./types";
 import { OFError } from "./types";
+import { getConfiguredProvider } from "./env";
 
 /**
  * Retorna a instancia do provider configurado.
- * Lazy import para evitar carregar SDKs de providers nao usados.
+ * Lazy import evita carregar SDKs de providers nao usados.
  *
- * @throws OFError se o provider configurado nao for suportado.
+ * @throws OFError se OPEN_FINANCE_PROVIDER tiver valor invalido.
  */
 export async function getOpenFinanceProvider(): Promise<OpenFinanceProvider> {
-  const provider = process.env.OPEN_FINANCE_PROVIDER ?? "pluggy";
+  const provider = getConfiguredProvider();
 
   if (provider === "pluggy") {
     const { PluggyProvider } = await import("./pluggy");
     return new PluggyProvider();
   }
 
+  // Belvo: importar aqui quando implementado no futuro
   throw new OFError(
     "PROVIDER_NOT_SUPPORTED",
-    `Provider '${provider}' nao suportado. Configure OPEN_FINANCE_PROVIDER=pluggy.`,
+    `Provider '${provider}' ainda nao implementado.`,
     false,
   );
 }
 
-// Re-exportar tipos publicos para conveniencia
+// Re-exportacoes publicas da camada de provider
 export type {
   OpenFinanceProvider,
   OFProviderAccount,
@@ -42,8 +43,6 @@ export type {
   OFSyncResult,
   OFProviderWebhookEvent,
   OFConnectionInfo,
-  OFProvider,
-  OFAccountType,
   OFErrorCode,
 } from "./types";
 
