@@ -5,6 +5,7 @@ import { getRadarInsights }             from "@/services/radar";
 import { computeHealthFromDashboard }   from "@/services/financial-health";
 import { computeInsightsFromDashboard } from "@/services/financial-insights";
 import { getOnboardingStatus }          from "@/services/onboarding";
+import { getAlerts }                    from "@/services/alerts";
 import { AppLayout }                    from "@/components/layout/AppLayout";
 import { DashboardClient }              from "./DashboardClient";
 
@@ -16,7 +17,7 @@ export const metadata: Metadata = {
 
 /**
  * /dashboard — Server Component
- * Sprint 11.4: adiciona onboarding status ao flow
+ * Sprint 11.5: adiciona alertas internos ao flow
  */
 export default async function DashboardPage() {
   await requireAuth();
@@ -47,8 +48,11 @@ export default async function DashboardPage() {
     ? computeInsightsFromDashboard(data, healthSnapshot)
     : { data: [], error: null };
 
-  // Onboarding: queries mínimas paralelas (OF connection, tx count, budget count)
-  const onboardingResult = await getOnboardingStatus(data);
+  // Onboarding + Alerts: queries paralelas
+  const [onboardingResult, alertsResult] = await Promise.all([
+    getOnboardingStatus(data),
+    getAlerts(data, healthSnapshot),
+  ]);
 
   return (
     <AppLayout>
@@ -59,6 +63,7 @@ export default async function DashboardPage() {
         healthSnapshot={healthSnapshot}
         financialInsights={insightsResult.data ?? []}
         onboarding={onboardingResult.data ?? null}
+        alerts={alertsResult.data ?? []}
       />
     </AppLayout>
   );

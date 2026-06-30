@@ -56,6 +56,8 @@ import type { FinancialInsight }  from "@/lib/financial-insights";
 import { FinancialInsightsCard }  from "@/components/dashboard/FinancialInsightsCard";
 import type { OnboardingStatus }  from "@/services/onboarding";
 import { OnboardingChecklist }    from "@/components/dashboard/OnboardingChecklist";
+import type { InternalAlert }         from "@/services/alerts";
+import { AlertsCard }               from "@/components/dashboard/AlertsCard";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -239,9 +241,10 @@ interface Props {
   healthSnapshot:     HealthSnapshot | null;
   financialInsights:  FinancialInsight[];
   onboarding:         OnboardingStatus | null;
+  alerts:             InternalAlert[];
 }
 
-export function DashboardClient({ data, error, radarInsights, healthSnapshot, financialInsights, onboarding }: Props) {
+export function DashboardClient({ data, error, radarInsights, healthSnapshot, financialInsights, onboarding, alerts }: Props) {
   const { investments, manualAssets } = data.patrimonio;
   const hasData = data.summary !== null || investments.length > 0 || manualAssets.length > 0;
 
@@ -302,6 +305,9 @@ export function DashboardClient({ data, error, radarInsights, healthSnapshot, fi
           <FinancialInsightsCard insights={financialInsights} className="lg:col-span-7" />
         </div>
       )}
+
+      {/* 8. Central de Alertas */}
+      <AlertsCard alerts={alerts} />
     </div>
   );
 }
