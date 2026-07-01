@@ -54,8 +54,11 @@ export default async function DashboardPage() {
     getAlerts(data, healthSnapshot),
   ]);
 
+  const alerts     = alertsResult.data ?? [];
+  const alertCount = alerts.filter(a => a.severity === "danger").length;
+
   return (
-    <AppLayout>
+    <AppLayout hideChrome alertCount={alertCount}>
       <DashboardClient
         data={data}
         error={result.error}
@@ -63,7 +66,7 @@ export default async function DashboardPage() {
         healthSnapshot={healthSnapshot}
         financialInsights={insightsResult.data ?? []}
         onboarding={onboardingResult.data ?? null}
-        alerts={alertsResult.data ?? []}
+        alerts={alerts}
       />
     </AppLayout>
   );

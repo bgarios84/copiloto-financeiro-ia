@@ -1,33 +1,36 @@
 "use client";
 
+/**
+ * Sidebar — Redesign Sprint
+ * Visual: dark premium, roxo como cor principal.
+ * Nav: Hoje | Patrimônio | Investir | Planejar | Acompanhar | Alertas | Aprender
+ * Quick Actions + User Profile + Configurações.
+ */
+
 import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  LayoutDashboard,
-  ArrowLeftRight,
+  Home,
+  Wallet,
   TrendingUp,
-  PieChart,
   Target,
-  FileText,
-  Settings,
-  ChevronLeft,
-  ChevronRight,
+  Activity,
   Bell,
-  Bot,
-  Sparkles,
-  ChevronsUpDown,
-  Building2,
-  Calendar,
-  CreditCard,
-  PiggyBank,
-  History,
+  BookOpen,
+  Plus,
+  Receipt,
+  Flag,
+  BarChart3,
+  Settings,
+  ChevronRight,
+  ChevronLeft,
   Flame,
+  Sparkles,
+  Building2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
-import { LAYOUT } from "@/shared/constants/theme";
 
 // ── Nav config ────────────────────────────────────────────────
 
@@ -35,32 +38,31 @@ interface NavItem {
   label: string;
   href: string;
   icon: React.ElementType;
-  badge?: string;
-  isNew?: boolean;
+  badge?: string | number;
+  spark?: boolean; // ✦ decoration for "Hoje"
+}
+
+interface QuickAction {
+  label: string;
+  href: string;
+  icon: React.ElementType;
 }
 
 const NAV_MAIN: NavItem[] = [
-  { label: "Visao Geral",   href: "/dashboard",    icon: LayoutDashboard },
-  { label: "Contas",        href: "/accounts",     icon: Building2       },
-  { label: "Cartoes",       href: "/credit-cards", icon: CreditCard      },
-  { label: "Transacoes",    href: "/transactions", icon: ArrowLeftRight  },
-  { label: "Orcamentos",    href: "/budgets",      icon: PiggyBank       },
-  { label: "Investimentos", href: "/investments",  icon: TrendingUp      },
-  { label: "Patrimonio",    href: "/wealth",       icon: PieChart        },
-  { label: "Timeline",      href: "/timeline",     icon: History         },
-  { label: "FIRE",          href: "/fire",         icon: Flame, isNew: true },
-  { label: "Metas",         href: "/budget",       icon: Target          },
-  { label: "Relatorios",    href: "/reports",      icon: FileText        },
+  { label: "Hoje",        href: "/dashboard",    icon: Home,      spark: true },
+  { label: "Patrimônio",  href: "/accounts",     icon: Wallet              },
+  { label: "Investir",    href: "/investments",  icon: TrendingUp          },
+  { label: "Planejar",    href: "/fire",         icon: Flame               },
+  { label: "Acompanhar",  href: "/timeline",     icon: Activity            },
+  { label: "Alertas",     href: "/settings/open-finance", icon: Bell       },
+  { label: "Aprender",    href: "/budgets",              icon: BookOpen            },
 ];
 
-const NAV_AI: NavItem[] = [
-  { label: "Analises com IA", href: "/ai",       icon: Bot,      isNew: true },
-  { label: "Planejamento",    href: "/planning", icon: Calendar, badge: "Novo" },
-  { label: "Alertas",         href: "/alerts",   icon: Bell,     badge: "3"   },
-];
-
-const NAV_SYSTEM: NavItem[] = [
-  { label: "Configuracoes", href: "/settings", icon: Settings },
+const QUICK_ACTIONS: QuickAction[] = [
+  { label: "Adicionar conta",    href: "/accounts",      icon: Building2 },
+  { label: "Registrar despesa",  href: "/transactions",  icon: Receipt   },
+  { label: "Definir meta",       href: "/budgets",       icon: Flag      },
+  { label: "Simular objetivo",   href: "/fire",          icon: BarChart3 },
 ];
 
 // ── Props ─────────────────────────────────────────────────────
@@ -68,50 +70,51 @@ const NAV_SYSTEM: NavItem[] = [
 interface SidebarProps {
   collapsed: boolean;
   onToggle: () => void;
+  alertCount?: number;
 }
 
 // ── Main Component ────────────────────────────────────────────
 
-export function Sidebar({ collapsed, onToggle }: SidebarProps) {
+export function Sidebar({ collapsed, onToggle, alertCount = 0 }: SidebarProps) {
   const pathname = usePathname();
 
+  // Inject alert count badge into Alertas nav item
+  const navItems = NAV_MAIN.map(item =>
+    item.label === "Alertas" && alertCount > 0
+      ? { ...item, badge: alertCount }
+      : item
+  );
+
   return (
-    <TooltipProvider delayDuration={300}>
+    <TooltipProvider delayDuration={200}>
       <aside
-        style={{ width: collapsed ? LAYOUT.sidebar.collapsed : LAYOUT.sidebar.width }}
+        style={{ width: collapsed ? "64px" : "220px" }}
         className={cn(
-          "relative flex h-full flex-col bg-sidebar text-sidebar-foreground",
-          "border-r border-sidebar-border",
+          "relative flex h-full flex-col",
+          "bg-zinc-950 border-r border-zinc-800/60",
           "transition-[width] duration-300 ease-in-out overflow-hidden"
         )}
       >
+        {/* ── Logo ── */}
         <div className={cn(
-          "flex h-14 shrink-0 items-center border-b border-sidebar-border",
+          "flex h-14 shrink-0 items-center border-b border-zinc-800/60",
           collapsed ? "justify-center px-0" : "justify-between px-4"
         )}>
           <Link href="/dashboard" className="flex items-center gap-2.5 min-w-0">
-            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-blue-500 to-violet-600 shadow-lg shadow-blue-500/25">
-              <Sparkles className="h-3.5 w-3.5 text-white" />
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-violet-600 shadow-lg shadow-violet-600/30">
+              <span className="text-white font-bold text-sm select-none">C</span>
             </div>
             {!collapsed && (
-              <div className="flex flex-col leading-none min-w-0">
-                <span className="text-[13px] font-semibold text-white tracking-tight truncate">
-                  Copiloto Financeiro
-                </span>
-                <span className="text-[10px] text-sidebar-muted tracking-wide uppercase">
-                  IA Beta
-                </span>
+              <div className="flex flex-col leading-tight min-w-0">
+                <span className="text-[13px] font-semibold text-zinc-100 tracking-tight">Copiloto</span>
+                <span className="text-[10px] text-zinc-500 tracking-wide">Financeiro IA</span>
               </div>
             )}
           </Link>
           {!collapsed && (
             <button
               onClick={onToggle}
-              className={cn(
-                "hidden lg:flex h-6 w-6 shrink-0 items-center justify-center rounded-md",
-                "text-sidebar-muted transition-colors",
-                "hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-              )}
+              className="hidden lg:flex h-6 w-6 items-center justify-center rounded-md text-zinc-600 hover:text-zinc-300 hover:bg-zinc-800 transition-colors"
               aria-label="Recolher sidebar"
             >
               <ChevronLeft className="h-3.5 w-3.5" />
@@ -120,11 +123,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
           {collapsed && (
             <button
               onClick={onToggle}
-              className={cn(
-                "hidden lg:flex h-6 w-6 items-center justify-center rounded-md",
-                "text-sidebar-muted transition-colors",
-                "hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-              )}
+              className="hidden lg:flex h-6 w-6 items-center justify-center rounded-md text-zinc-600 hover:text-zinc-300 hover:bg-zinc-800 transition-colors"
               aria-label="Expandir sidebar"
             >
               <ChevronRight className="h-3.5 w-3.5" />
@@ -132,177 +131,139 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
           )}
         </div>
 
-        <ScrollArea className="flex-1 py-3">
-          <div className="flex flex-col gap-5 px-2">
-            <NavGroup label="Menu"         items={NAV_MAIN}   collapsed={collapsed} pathname={pathname} />
-            <NavGroup label="Inteligencia" items={NAV_AI}     collapsed={collapsed} pathname={pathname} />
-            <NavGroup label="Sistema"      items={NAV_SYSTEM} collapsed={collapsed} pathname={pathname} />
-          </div>
-        </ScrollArea>
+        {/* ── Navigation ── */}
+        <div className="flex-1 overflow-y-auto overflow-x-hidden py-4 px-2 flex flex-col gap-6">
 
-        {!collapsed && (
-          <div className="shrink-0 px-2 pb-2">
-            <div className={cn(
-              "rounded-xl border border-blue-500/20 p-3",
-              "bg-gradient-to-br from-blue-500/10 to-violet-500/10"
-            )}>
-              <div className="flex items-center gap-2 mb-1">
-                <Sparkles className="h-3.5 w-3.5 text-violet-400" />
-                <p className="text-[12px] font-semibold text-sidebar-accent-foreground">
-                  Plano Premium
-                </p>
-              </div>
-              <p className="text-[10px] text-sidebar-muted mb-2.5">
-                Aproveite todos os recursos
+          {/* Main nav */}
+          <nav className="flex flex-col gap-0.5">
+            {navItems.map((item) => {
+              const isActive = pathname === item.href || pathname.startsWith(item.href + "/");
+              const Icon = item.icon;
+
+              const linkEl = (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={cn(
+                    "group flex items-center gap-2.5 rounded-lg text-[13px] font-medium transition-all duration-150",
+                    collapsed ? "h-9 w-9 justify-center p-0" : "h-9 px-3",
+                    isActive
+                      ? "bg-violet-600 text-white shadow-sm shadow-violet-600/30"
+                      : "text-zinc-400 hover:bg-zinc-800/80 hover:text-zinc-100"
+                  )}
+                >
+                  <Icon className={cn(
+                    "shrink-0",
+                    collapsed ? "h-4.5 w-4.5" : "h-4 w-4",
+                    isActive ? "text-white" : "text-zinc-500 group-hover:text-zinc-300"
+                  )} />
+                  {!collapsed && (
+                    <span className="flex-1 truncate">{item.label}</span>
+                  )}
+                  {!collapsed && item.badge && (
+                    <span className="ml-auto flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-rose-500/20 px-1 text-[10px] font-semibold text-rose-400">
+                      {item.badge}
+                    </span>
+                  )}
+                  {!collapsed && item.spark && !isActive && (
+                    <Sparkles className="h-3 w-3 text-violet-400 ml-auto shrink-0" />
+                  )}
+                </Link>
+              );
+
+              if (collapsed) {
+                return (
+                  <Tooltip key={item.href}>
+                    <TooltipTrigger asChild>{linkEl}</TooltipTrigger>
+                    <TooltipContent side="right" className="flex items-center gap-2">
+                      <span>{item.label}</span>
+                      {item.badge && (
+                        <span className="rounded-full bg-rose-500/20 px-1.5 text-[10px] font-semibold text-rose-400">
+                          {item.badge}
+                        </span>
+                      )}
+                    </TooltipContent>
+                  </Tooltip>
+                );
+              }
+
+              return linkEl;
+            })}
+          </nav>
+
+          {/* Quick Actions */}
+          {!collapsed && (
+            <div>
+              <p className="mb-2 px-1 text-[10px] font-semibold uppercase tracking-widest text-zinc-600">
+                Ações Rápidas
               </p>
-              <button className={cn(
-                "w-full rounded-lg py-1.5 text-[11px] font-semibold text-white",
-                "bg-gradient-to-r from-blue-500 to-violet-600",
-                "transition-opacity hover:opacity-90"
-              )}>
-                Gerenciar plano
-              </button>
+              <div className="flex flex-col gap-0.5">
+                {QUICK_ACTIONS.map((a) => {
+                  const Icon = a.icon;
+                  return (
+                    <Link
+                      key={a.href + a.label}
+                      href={a.href}
+                      className="flex items-center gap-2.5 rounded-lg h-8 px-3 text-[12px] text-zinc-500 hover:text-zinc-200 hover:bg-zinc-800/80 transition-colors"
+                    >
+                      <Plus className="h-3 w-3 text-zinc-600 shrink-0" />
+                      <span className="truncate">{a.label}</span>
+                    </Link>
+                  );
+                })}
+              </div>
             </div>
-          </div>
-        )}
-
-        <div className={cn(
-          "shrink-0 border-t border-sidebar-border",
-          collapsed ? "p-2" : "p-3"
-        )}>
-          {collapsed ? (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <button className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-blue-500 to-violet-600 text-xs font-bold text-white mx-auto">
-                  B
-                </button>
-              </TooltipTrigger>
-              <TooltipContent side="right">
-                <p className="font-medium">Bernardo G.</p>
-                <p className="text-xs text-muted-foreground">bgarios@gmail.com</p>
-              </TooltipContent>
-            </Tooltip>
-          ) : (
-            <button className={cn(
-              "group flex w-full items-center gap-2.5 rounded-lg p-2",
-              "transition-colors hover:bg-sidebar-accent"
-            )}>
-              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-blue-500 to-violet-600 text-xs font-bold text-white">
-                B
-              </div>
-              <div className="flex-1 min-w-0 text-left">
-                <p className="text-[13px] font-medium text-sidebar-accent-foreground truncate">
-                  Bernardo G.
-                </p>
-                <p className="text-[11px] text-sidebar-muted truncate">bgarios@gmail.com</p>
-              </div>
-              <ChevronsUpDown className="h-3.5 w-3.5 text-sidebar-muted shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" />
-            </button>
           )}
+        </div>
+
+        {/* ── User Profile ── */}
+        <div className="shrink-0 border-t border-zinc-800/60">
+          {/* Settings */}
+          {!collapsed && (
+            <Link
+              href="/settings/open-finance"
+              className="flex items-center gap-2.5 px-4 py-3 text-[12px] text-zinc-600 hover:text-zinc-300 transition-colors"
+            >
+              <Settings className="h-3.5 w-3.5" />
+              <span>Configurações</span>
+              <ChevronRight className="h-3.5 w-3.5 ml-auto" />
+            </Link>
+          )}
+
+          {/* Profile */}
+          <div className={cn(
+            "flex items-center gap-3 px-3 py-3",
+            collapsed ? "justify-center" : ""
+          )}>
+            {collapsed ? (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div className="flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-full bg-gradient-to-br from-violet-500 to-blue-500 text-xs font-bold text-white">
+                    B
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent side="right">
+                  <p className="font-medium">Bernardo</p>
+                  <p className="text-xs text-zinc-400">bgarios@gmail.com</p>
+                </TooltipContent>
+              </Tooltip>
+            ) : (
+              <>
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-violet-500 to-blue-500 text-xs font-bold text-white">
+                  B
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-[13px] font-medium text-zinc-100 truncate">Bernardo</p>
+                  <span className="inline-flex items-center rounded-full bg-violet-500/20 px-1.5 py-0.5 text-[9px] font-semibold text-violet-400">
+                    Premium
+                  </span>
+                </div>
+                <ChevronRight className="h-4 w-4 text-zinc-700 shrink-0" />
+              </>
+            )}
+          </div>
         </div>
       </aside>
     </TooltipProvider>
   );
-}
-
-// ── NavGroup ──────────────────────────────────────────────────
-
-function NavGroup({
-  label, items, collapsed, pathname,
-}: {
-  label: string;
-  items: NavItem[];
-  collapsed: boolean;
-  pathname: string;
-}) {
-  return (
-    <div>
-      {!collapsed && (
-        <p className="mb-1 px-2 text-[10px] font-semibold uppercase tracking-widest text-sidebar-muted">
-          {label}
-        </p>
-      )}
-      <nav className="flex flex-col gap-0.5">
-        {items.map((item) => (
-          <NavLink
-            key={item.href}
-            item={item}
-            collapsed={collapsed}
-            isActive={pathname === item.href || pathname.startsWith(item.href + "/")}
-          />
-        ))}
-      </nav>
-    </div>
-  );
-}
-
-// ── NavLink ───────────────────────────────────────────────────
-
-function NavLink({
-  item, collapsed, isActive,
-}: {
-  item: NavItem;
-  collapsed: boolean;
-  isActive: boolean;
-}) {
-  const Icon = item.icon;
-
-  const content = (
-    <Link
-      href={item.href}
-      className={cn(
-        "group relative flex h-8 items-center gap-2.5 rounded-md text-[13px] font-medium",
-        "transition-all duration-150",
-        collapsed ? "w-8 justify-center px-0" : "px-2",
-        isActive
-          ? "bg-sidebar-accent text-sidebar-accent-foreground"
-          : "text-sidebar-foreground/60 hover:bg-sidebar-accent/60 hover:text-sidebar-foreground"
-      )}
-    >
-      {isActive && !collapsed && (
-        <span className="absolute left-0 top-1/2 -translate-y-1/2 h-4 w-0.5 rounded-full bg-blue-400" />
-      )}
-      <Icon className={cn(
-        "shrink-0 transition-colors",
-        collapsed ? "h-4 w-4" : "h-3.5 w-3.5",
-        isActive
-          ? "text-blue-400"
-          : "text-sidebar-foreground/40 group-hover:text-sidebar-foreground/70"
-      )} />
-      {!collapsed && <span className="truncate">{item.label}</span>}
-      {!collapsed && item.badge && (
-        <span className="ml-auto flex h-4 min-w-4 items-center justify-center rounded-full bg-blue-500/20 px-1.5 text-[10px] font-semibold text-blue-400">
-          {item.badge}
-        </span>
-      )}
-      {!collapsed && item.isNew && (
-        <span className="ml-auto rounded-full bg-violet-500/20 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-violet-400">
-          Novo
-        </span>
-      )}
-    </Link>
-  );
-
-  if (collapsed) {
-    return (
-      <Tooltip>
-        <TooltipTrigger asChild>{content}</TooltipTrigger>
-        <TooltipContent side="right" className="flex items-center gap-2">
-          <span>{item.label}</span>
-          {item.badge && (
-            <span className="rounded-full bg-blue-500/20 px-1.5 py-0.5 text-[10px] font-semibold text-blue-400">
-              {item.badge}
-            </span>
-          )}
-          {item.isNew && (
-            <span className="rounded-full bg-violet-500/20 px-1.5 py-0.5 text-[9px] font-semibold uppercase text-violet-400">
-              Novo
-            </span>
-            )}
-        </TooltipContent>
-      </Tooltip>
-    );
-  }
-
-  return content;
 }
