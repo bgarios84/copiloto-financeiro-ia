@@ -296,4 +296,3 @@ export function Sidebar({ collapsed, onToggle, alertCount = 0 }: SidebarProps) {
     </TooltipProvider>
   );
 }
- 
