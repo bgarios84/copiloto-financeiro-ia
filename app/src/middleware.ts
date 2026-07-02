@@ -17,6 +17,7 @@ const PROTECTED_ROUTES = [
   "/alerts",
   "/settings",
   "/fire",
+  "/health",
   "/wealth",
   "/credit-cards",
   "/timeline",

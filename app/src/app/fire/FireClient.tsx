@@ -11,9 +11,10 @@
  */
 
 import * as React from "react";
+import Link from "next/link";
 import {
   Flame, Target, TrendingUp, Clock, Wallet, BarChart3,
-  ChevronRight, Info, Trash2, BookmarkPlus, CheckCircle2,
+  ChevronRight, ChevronLeft, Info, Trash2, BookmarkPlus, CheckCircle2,
   XCircle, Trophy, Zap, PiggyBank, LineChart,
 } from "lucide-react";
 import { cn, formatCurrency } from "@/lib/utils";
@@ -31,7 +32,8 @@ interface Props { data: FireData | null; error: string | null; }
 
 type ActiveTab = "dashboard" | "cenarios" | "graficos" | "indicadores";
 
-const SAVED_KEY = "fire_scenarios_v1";
+const SAVED_KEY  = "fire_scenarios_v1";
+const ACTIVE_KEY = "fire_active_scene_v1";
 
 function loadSaved(): SavedScenario[] {
   try { return JSON.parse(localStorage.getItem(SAVED_KEY) ?? "[]") as SavedScenario[]; }
@@ -39,6 +41,15 @@ function loadSaved(): SavedScenario[] {
 }
 function persistSaved(list: SavedScenario[]): void {
   localStorage.setItem(SAVED_KEY, JSON.stringify(list));
+}
+function loadActiveId(): string | null {
+  try { return localStorage.getItem(ACTIVE_KEY); } catch { return null; }
+}
+function persistActiveId(id: string | null): void {
+  try {
+    if (id) localStorage.setItem(ACTIVE_KEY, id);
+    else localStorage.removeItem(ACTIVE_KEY);
+  } catch {}
 }
 
 function fmtYears(y: number): string {
@@ -269,10 +280,30 @@ export function FireClient({ data, error }: Props) {
   const [activeTab,     setActiveTab]     = React.useState<ActiveTab>("dashboard");
   const [activeScenKey, setActiveScenKey] = React.useState<string>("base");
   const [savedScenarios, setSavedScenarios] = React.useState<SavedScenario[]>([]);
-  const [saveSuccess, setSaveSuccess]     = React.useState(false);
+  const [saveSuccess,  setSaveSuccess]  = React.useState(false);
+  const [loadSuccess,  setLoadSuccess]  = React.useState<string | null>(null);
+  const [activeScenId, setActiveScenId] = React.useState<string | null>(null);
 
-  // Load saved on mount
-  React.useEffect(() => { setSavedScenarios(loadSaved()); }, []);
+  // Load saved scenarios + restore active scenario on mount
+  React.useEffect(() => {
+    const saved = loadSaved();
+    setSavedScenarios(saved);
+    const aid = loadActiveId();
+    if (aid) {
+      const active = saved.find(s => s.id === aid);
+      if (active) {
+        setContribution(active.input.monthlyContribution);
+        setAnnualExtra(active.input.annualExtra);
+        setAnnualReturn(active.input.annualReturn);
+        setInflation(active.input.annualInflation);
+        setSwr(active.input.safeWithdrawalRate);
+        setCurrentAge(active.input.currentAge);
+        setTargetAge(active.input.targetAge);
+        setTargetIncome(active.input.targetMonthlyIncome);
+        setActiveScenId(aid);
+      }
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Derived ──────────────────────────────────────────────────────────────
   const baseInput = React.useMemo((): FireInput => ({
@@ -309,8 +340,26 @@ export function FireClient({ data, error }: Props) {
     const next = [ns, ...savedScenarios].slice(0, 10);
     setSavedScenarios(next);
     persistSaved(next);
+    // Define como cenário ativo
+    setActiveScenId(ns.id);
+    persistActiveId(ns.id);
     setSaveSuccess(true);
-    setTimeout(() => setSaveSuccess(false), 2000);
+    setTimeout(() => setSaveSuccess(false), 3000);
+  }
+  // ── Load saved scenario ───────────────────────────────────────────────────
+  function handleLoadSaved(s: SavedScenario) {
+    setContribution(s.input.monthlyContribution);
+    setAnnualExtra(s.input.annualExtra);
+    setAnnualReturn(s.input.annualReturn);
+    setInflation(s.input.annualInflation);
+    setSwr(s.input.safeWithdrawalRate);
+    setCurrentAge(s.input.currentAge);
+    setTargetAge(s.input.targetAge);
+    setTargetIncome(s.input.targetMonthlyIncome);
+    setActiveScenId(s.id);
+    persistActiveId(s.id);
+    setLoadSuccess(s.id);
+    setTimeout(() => setLoadSuccess(null), 2000);
   }
   function handleDeleteSaved(id: string) {
     const next = savedScenarios.filter(s => s.id !== id);
@@ -344,17 +393,32 @@ export function FireClient({ data, error }: Props) {
 
   const fiColor = FI_LEVEL_COLORS[indicators.fiLevel];
   const fiLabel = FI_LEVEL_LABELS[indicators.fiLevel];
+  // Cor da barra de progresso: thresholds de percentual (0-25 red, 25-50 amber, 50-75 green, 75+ violet)
+  const progressColor =
+    baseResult.firePercentage >= 75 ? "#8b5cf6" :
+    baseResult.firePercentage >= 50 ? "#10b981" :
+    baseResult.firePercentage >= 25 ? "#f59e0b" :
+    "#ef4444";
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-4 pb-10">
       {/* Page header */}
-      <div className="flex items-center gap-3 shrink-0">
-        <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 shadow-lg shadow-amber-500/25">
-          <Flame className="h-4.5 w-4.5 text-white" />
-        </div>
-        <div>
-          <h1 className="text-[20px] font-bold text-foreground leading-tight">FIRE Planner Premium</h1>
-          <p className="text-[11px] text-muted-foreground">Financial Independence, Retire Early</p>
+      <div className="flex flex-col gap-1.5 shrink-0">
+        <Link
+          href="/dashboard"
+          className="flex w-fit items-center gap-1 text-[11px] font-medium text-muted-foreground hover:text-foreground transition-colors"
+        >
+          <ChevronLeft className="h-3.5 w-3.5" />
+          Dashboard
+        </Link>
+        <div className="flex items-center gap-3">
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 shadow-lg shadow-amber-500/25">
+            <Flame className="h-4.5 w-4.5 text-white" />
+          </div>
+          <div>
+            <h1 className="text-[20px] font-bold text-foreground leading-tight">FIRE Planner Premium</h1>
+            <p className="text-[11px] text-muted-foreground">Financial Independence, Retire Early</p>
+          </div>
         </div>
       </div>
 
@@ -370,9 +434,15 @@ export function FireClient({ data, error }: Props) {
         {/* LEFT — Simulator panel */}
         <div className="w-full lg:w-72 xl:w-80 shrink-0">
           <div className="lg:sticky lg:top-4 rounded-xl border border-border bg-card shadow-[var(--shadow-card)] p-4 space-y-4">
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <Info className="h-3.5 w-3.5 text-muted-foreground" />
               <span className="text-[12px] font-semibold text-foreground">Simulador</span>
+              {activeScenId && (() => {
+                const a = savedScenarios.find(s => s.id === activeScenId);
+                return a ? (
+                  <span className="ml-auto text-[9px] text-violet-400 truncate max-w-[120px]" title={a.name}>● {a.name}</span>
+                ) : null;
+              })()}
             </div>
 
             <Slider label="Aporte Mensal" value={contribution} min={0} max={30_000} step={100}
@@ -428,6 +498,20 @@ export function FireClient({ data, error }: Props) {
                 </div>
               ))}
             </div>
+
+            {/* Salvar cenário ativo */}
+            <button
+              onClick={handleSave}
+              className={cn(
+                "w-full flex items-center justify-center gap-1.5 rounded-lg py-2 text-[12px] font-semibold transition-all border",
+                saveSuccess
+                  ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/25"
+                  : "bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 border-blue-500/20"
+              )}>
+              {saveSuccess
+                ? <><CheckCircle2 className="h-3.5 w-3.5" />&nbsp;Cenário salvo e definido como ativo</>
+                : <><BookmarkPlus className="h-3.5 w-3.5" />&nbsp;Salvar cenário</>}
+            </button>
           </div>
         </div>
 
@@ -469,7 +553,7 @@ export function FireClient({ data, error }: Props) {
                       <div className="h-full rounded-full transition-all duration-700"
                         style={{
                           width: `${Math.min(100, baseResult.firePercentage)}%`,
-                          background: `linear-gradient(to right, ${fiColor}CC, ${fiColor})`,
+                          background: `linear-gradient(to right, ${progressColor}CC, ${progressColor})`,
                         }} />
                     </div>
                     <div className="flex items-center gap-3">
@@ -549,13 +633,35 @@ export function FireClient({ data, error }: Props) {
                   <div className="space-y-2 border-t border-border pt-3">
                     <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide mb-2">Salvos ({savedScenarios.length})</p>
                     {savedScenarios.map(s => (
-                      <div key={s.id} className="flex items-center gap-3 rounded-lg border border-border/50 bg-secondary/30 p-2.5">
+                      <div key={s.id} className={cn(
+                        "flex items-center gap-2 rounded-lg border p-2.5 transition-all",
+                        activeScenId === s.id
+                          ? "border-violet-500/40 bg-violet-500/10"
+                          : "border-border/50 bg-secondary/30"
+                      )}>
                         <div className="min-w-0 flex-1">
-                          <p className="text-[11px] font-medium text-foreground truncate">{s.name}</p>
+                          <div className="flex items-center gap-1.5">
+                            {activeScenId === s.id && (
+                              <span className="h-1.5 w-1.5 rounded-full bg-violet-400 shrink-0" />
+                            )}
+                            <p className="text-[11px] font-medium text-foreground truncate">{s.name}</p>
+                          </div>
                           <p className="text-[10px] text-muted-foreground mt-0.5">
                             Target: {formatCurrency(s.result.fireTarget)} · {fmtYears(s.result.yearsToFire)}
                           </p>
                         </div>
+                        <button
+                          onClick={() => handleLoadSaved(s)}
+                          className={cn(
+                            "shrink-0 rounded-md px-2 py-1 text-[10px] font-semibold transition-colors whitespace-nowrap",
+                            loadSuccess === s.id
+                              ? "text-emerald-400 bg-emerald-500/10"
+                              : activeScenId === s.id
+                              ? "text-violet-400 bg-violet-500/10"
+                              : "text-blue-400 hover:bg-blue-500/10"
+                          )}>
+                          {loadSuccess === s.id ? "✓ Ativo" : activeScenId === s.id ? "Ativo" : "Carregar"}
+                        </button>
                         <button onClick={() => handleDeleteSaved(s.id)}
                           className="shrink-0 rounded-md p-1 text-muted-foreground hover:text-destructive transition-colors">
                           <Trash2 className="h-3.5 w-3.5" />

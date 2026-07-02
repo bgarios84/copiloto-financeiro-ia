@@ -5,7 +5,7 @@ import { Plus, Search, Building2, RefreshCw } from "lucide-react";
 import { cn, formatCurrency } from "@/lib/utils";
 import { EmptyState } from "@/components/feedback/EmptyState";
 import { deleteAccount } from "@/services/financial-account";
-import { syncConnectionAccounts, syncConnectionTransactions } from "@/services/open-finance";
+import { syncConnectionAccounts } from "@/services/open-finance";
 import type { OFConnectionWithInstitution } from "@/services/open-finance";
 import { useRouter } from "next/navigation";
 import { AccountCard } from "./AccountCard";
@@ -104,14 +104,13 @@ export function AccountsClient({
   function removeSyncing(id: string) { setSyncingIds((s) => { const n = new Set(s); n.delete(id); return n; }); }
 
   async function syncConnection(connectionId: string): Promise<{ ok: boolean; msg: string }> {
-    const [accResult, txResult] = await Promise.all([
-      syncConnectionAccounts(connectionId),
-      syncConnectionTransactions(connectionId),
-    ]);
+    // syncConnectionAccounts executa sync COMPLETO (contas + transações) via
+    // runConnectionSync. Chamar syncConnectionTransactions em paralelo causava
+    // race condition no lock distribuído (um sync era skipped e retornava erro).
+    const accResult = await syncConnectionAccounts(connectionId);
     if (accResult.error) return { ok: false, msg: accResult.error };
-    if (txResult.error)  return { ok: false, msg: txResult.error };
-    const { accountsSynced }       = accResult.data;
-    const { transactionsCreated }  = txResult.data;
+    if (!accResult.data) return { ok: false, msg: "Sincronização sem resultado." };
+    const { accountsSynced, transactionsCreated } = accResult.data;
     return {
       ok:  true,
       msg: `${accountsSynced} conta(s) e ${transactionsCreated} transação(ões) sincronizadas.`,

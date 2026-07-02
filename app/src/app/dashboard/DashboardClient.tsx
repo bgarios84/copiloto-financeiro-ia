@@ -1,4 +1,5 @@
 "use client";
+import Image from "next/image";
 
 /**
  * DashboardClient — Sprint 12.1 UX Redesign
@@ -22,7 +23,7 @@ import {
   AlertCircle, Info, ChevronRight, Flame, Target, PiggyBank, Wallet,
   BarChart3, Activity, RefreshCw, Bell, Lightbulb, Home,
   ArrowUpRight, ArrowDownRight, Zap, Shield, BookOpen, FileText,
-  DollarSign, Building2,
+  DollarSign,
 } from "lucide-react";
 import { cn, formatCurrency } from "@/lib/utils";
 import type { DashboardData } from "@/types/dashboard";
@@ -31,6 +32,10 @@ import type { HealthSnapshot } from "@/lib/financial-health";
 import type { FinancialInsight } from "@/lib/financial-insights";
 import type { InternalAlert }    from "@/services/alerts";
 import type { OnboardingStatus } from "@/services/onboarding";
+import type { FinancialContext }   from "@/lib/financial-context";
+import { AlertsCard }              from "@/components/dashboard/AlertsCard";
+import { FinancialInsightsCard }   from "@/components/dashboard/FinancialInsightsCard";
+import { OnboardingChecklist }     from "@/components/dashboard/OnboardingChecklist";
 
 // ── Types ─────────────────────────────────────────────────────
 
@@ -42,13 +47,16 @@ interface Props {
   financialInsights: FinancialInsight[];
   onboarding:        OnboardingStatus | null;
   alerts:            InternalAlert[];
+  financialContext:  FinancialContext | null;
 }
 
 // ── Utils ─────────────────────────────────────────────────────
 
-function greet(): string {
-  const h = new Date().getHours();
-  return h < 12 ? "Bom dia" : h < 18 ? "Boa tarde" : "Boa noite";
+function getGreeting(date = new Date()): string {
+  const hour = date.getHours();
+  if (hour < 12) return "Bom dia";
+  if (hour < 18) return "Boa tarde";
+  return "Boa noite";
 }
 
 function fmt(v: number): string {
@@ -83,14 +91,16 @@ function ScoreArc({ score, sz = 120 }: { score: number; sz?: number }) {
   const cx = sz / 2, cy = sz / 2, r = sz * 0.37;
   const color = scoreHex(score);
   const sx = cx - r, sy = cy, ex = cx + r, ey = cy;
+  // angle: 180° at score=0 (left endpoint), 0° at score=100 (right endpoint)
   const a = (180 - (score / 100) * 180) * (Math.PI / 180);
   const px = cx + r * Math.cos(a), py = cy - r * Math.sin(a);
-  const la = score > 50 ? 1 : 0;
+  // sweep=1 (clockwise) from left→right goes through the TOP of the circle ✓
+  // large-arc is always 0 because progress arc ≤ 180° for any score 0–100
   return (
     <svg viewBox={`0 0 ${sz} ${sz / 2 + 18}`} style={{ width: sz }} className="mx-auto">
       <path d={`M ${sx} ${sy} A ${r} ${r} 0 0 1 ${ex} ${ey}`} fill="none" stroke="#27272a" strokeWidth="10" strokeLinecap="round" />
       {score > 0 && (
-        <path d={`M ${sx} ${sy} A ${r} ${r} 0 ${la} 1 ${px.toFixed(2)} ${py.toFixed(2)}`} fill="none" stroke={color} strokeWidth="10" strokeLinecap="round" />
+        <path d={`M ${sx} ${sy} A ${r} ${r} 0 0 1 ${px.toFixed(2)} ${py.toFixed(2)}`} fill="none" stroke={color} strokeWidth="10" strokeLinecap="round" />
       )}
       <text x={cx} y={cy - 4} textAnchor="middle" fill="white" fontSize={sz * 0.24} fontWeight="700" fontFamily="Inter,system-ui">{score}</text>
       <text x={cx} y={cy + 14} textAnchor="middle" fill="#52525b" fontSize={sz * 0.1} fontFamily="Inter,system-ui">/ 100</text>
@@ -117,14 +127,9 @@ function Spark({ values, color = "#8b5cf6" }: { values: number[]; color?: string
 function Header({ dangerCount }: { dangerCount: number }) {
   return (
     <div className="flex items-center justify-between">
-      <div>
-        <p className="text-[22px] font-semibold text-zinc-50 leading-none tracking-tight">
-          {greet()}, Bernardo 👋
-        </p>
-        <p className="text-[12px] text-zinc-600 mt-1.5 capitalize">
-          {new Date().toLocaleDateString("pt-BR", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
-        </p>
-      </div>
+      <p suppressHydrationWarning className="text-[12px] text-zinc-600 capitalize">
+        {new Date().toLocaleDateString("pt-BR", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
+      </p>
       <div className="flex items-center gap-2">
         <button className="flex items-center gap-1.5 rounded-xl border border-zinc-800 bg-zinc-900/80 px-3 py-2 text-[11px] font-medium text-zinc-500 hover:text-zinc-200 hover:border-zinc-700 transition-all">
           <RefreshCw className="h-3.5 w-3.5" />
@@ -139,6 +144,29 @@ function Header({ dangerCount }: { dangerCount: number }) {
           )}
         </button>
       </div>
+    </div>
+  );
+}
+
+// ── FireAvatar ─────────────────────────────────────────────────
+
+function FireAvatar() {
+  return (
+    <div className="shrink-0 flex flex-col items-center gap-2">
+      <div className="relative">
+        <Image
+          src="/brand/fire-avatar2.png"
+          alt="Fire"
+          width={64}
+          height={64}
+          className="h-16 w-16 object-contain"
+        />
+        {/* Online indicator */}
+        <div className="absolute -bottom-1 -right-1 h-4 w-4 rounded-full bg-zinc-900 flex items-center justify-center ring-2 ring-zinc-900">
+          <div className="h-2.5 w-2.5 rounded-full bg-emerald-500 animate-pulse" />
+        </div>
+      </div>
+      <span className="text-[9px] font-semibold text-emerald-500 tracking-widest uppercase">Online</span>
     </div>
   );
 }
@@ -176,6 +204,7 @@ function EventChip({ icon: Icon, label, value, sub, positive, iconColor, iconBg 
 }
 
 function buildMessage(
+  netWorth:     number,
   growthBRL:    number,
   growthPct:    number | null,
   isPos:        boolean,
@@ -203,6 +232,9 @@ function buildMessage(
   }
 
   if (parts.length === 0) {
+    if (netWorth > 0) {
+      return `Seu patrimônio atual é de ${fmt(netWorth)}. Continue acompanhando para receber análises mais detalhadas da sua vida financeira.`;
+    }
     return "Conecte suas contas e registre transações para que eu possa analisar sua vida financeira completa.";
   }
 
@@ -233,7 +265,8 @@ function FireHero({
   const isPos       = (growthPct ?? 0) >= 0;
   const dangerAlerts= alerts.filter(a => a.severity === "danger");
   const succInsights= insights.filter(i => i.severity === "success");
-  const message     = buildMessage(growthBRL, growthPct, isPos, fireYear, dangerAlerts, succInsights);
+  const totalPoints = dangerAlerts.length + succInsights.length + (fireYear ? 1 : 0);
+  const message     = buildMessage(netWorth, growthBRL, growthPct, isPos, fireYear, dangerAlerts, succInsights);
 
   // 4 events
   const events: EventChipProps[] = [
@@ -296,43 +329,43 @@ function FireHero({
   ];
 
   return (
-    <section className="rounded-3xl border border-zinc-800/30 bg-zinc-900/30 px-8 py-8 relative overflow-hidden">
+    <section className="rounded-3xl border border-zinc-800/30 bg-zinc-900/30 px-7 py-6 relative overflow-hidden">
       {/* Subtle top accent */}
       <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-violet-600/30 to-transparent" />
 
-      {/* Main row */}
-      <div className="flex items-start gap-7 mb-7">
-        {/* FIRE avatar */}
-        <div className="shrink-0 flex flex-col items-center gap-2">
-          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-500 to-purple-700 shadow-xl shadow-violet-700/30">
-            <Sparkles className="h-7 w-7 text-white" />
-          </div>
-          <div className="flex items-center gap-1">
-            <div className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-            <span className="text-[9px] font-medium text-emerald-500/70">online</span>
-          </div>
-        </div>
-
-        {/* Message block */}
+      {/* Main row: [Mensagem] [Avatar] [CTA] */}
+      <div className="flex items-center gap-6 mb-5">
+        {/* Mensagem — lado esquerdo */}
         <div className="flex-1 min-w-0">
-          <p className="text-[26px] font-bold text-zinc-50 leading-snug tracking-tight">
-            {greet()}.
+          <p suppressHydrationWarning className="text-[22px] font-bold text-zinc-50 leading-tight tracking-tight">
+            {getGreeting()}, Bernardo! 👋
           </p>
-          <p className="text-[26px] font-bold text-zinc-50 leading-snug tracking-tight mb-4">
-            Analisei toda sua vida financeira.
-          </p>
-          <p className="text-[15px] text-zinc-400 leading-relaxed max-w-2xl">
+          {totalPoints > 0 && (
+            <p className="text-[12px] font-semibold text-violet-400 mt-0.5 mb-2">
+              {totalPoints} {totalPoints === 1 ? "ponto importante" : "pontos importantes"} hoje
+            </p>
+          )}
+          <p className="text-[13px] text-zinc-400 leading-relaxed max-w-lg mt-1">
             {message}
           </p>
         </div>
 
-        {/* CTA */}
+        {/* Avatar — ao lado da mensagem */}
+        <FireAvatar />
+
+        {/* CTA — lado direito */}
         <div className="shrink-0 flex flex-col items-end gap-3">
           <Link
             href="/fire"
             className="flex items-center gap-2 rounded-2xl bg-violet-600 hover:bg-violet-500 px-5 py-2.5 text-[13px] font-semibold text-white transition-all shadow-lg shadow-violet-700/25 whitespace-nowrap"
           >
-            <Sparkles className="h-4 w-4" />
+            <Image
+              src="/brand/nextfire-icon.png"
+              alt=""
+              width={18}
+              height={18}
+              className="h-[18px] w-[18px] object-contain shrink-0"
+            />
             Conversar com FIRE
           </Link>
           <p className="text-[10px] text-zinc-700 text-right max-w-[160px]">
@@ -341,7 +374,7 @@ function FireHero({
         </div>
       </div>
 
-      {/* 4 events */}
+      {/* 4 event chips */}
       <div className="flex gap-3">
         {events.map((ev, i) => (
           <EventChip key={i} {...ev} />
@@ -357,7 +390,7 @@ const ACTIONS = [
   {
     icon:   BarChart3,
     label:  "Analisar investimentos",
-    sub:    "Veja oportunidades na sua carteira",
+    sub:    "Oportunidades na carteira",
     href:   "/investments",
     color:  "text-violet-400",
     bg:     "bg-violet-500/10",
@@ -375,29 +408,20 @@ const ACTIONS = [
   {
     icon:   Flame,
     label:  "Projetar minha FIRE",
-    sub:    "Simule sua independência financeira",
+    sub:    "Simule independência financeira",
     href:   "/fire",
     color:  "text-amber-400",
     bg:     "bg-amber-500/10",
     border: "hover:border-amber-500/30",
   },
   {
-    icon:   Building2,
-    label:  "Comprar imóvel",
-    sub:    "Planeje e simule sua compra",
-    href:   "/fire",
-    color:  "text-emerald-400",
-    bg:     "bg-emerald-500/10",
-    border: "hover:border-emerald-500/30",
-  },
-  {
     icon:   Lightbulb,
     label:  "Encontrar oportunidades",
     sub:    "Descubra como crescer mais",
     href:   "/investments",
-    color:  "text-rose-400",
-    bg:     "bg-rose-500/10",
-    border: "hover:border-rose-500/30",
+    color:  "text-emerald-400",
+    bg:     "bg-emerald-500/10",
+    border: "hover:border-emerald-500/30",
   },
   {
     icon:   Sparkles,
@@ -414,12 +438,9 @@ function SuggestedActions() {
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
-        <div>
-          <p className="text-[16px] font-semibold text-zinc-100 leading-none">O que você quer fazer?</p>
-          <p className="text-[12px] text-zinc-600 mt-1">Escolha uma ação ou converse diretamente com o FIRE</p>
-        </div>
+        <p className="text-[14px] font-semibold text-zinc-200 leading-none">O que você quer fazer?</p>
       </div>
-      <div className="grid grid-cols-3 gap-3">
+      <div className="flex gap-3">
         {ACTIONS.map(a => {
           const Icon = a.icon;
           return (
@@ -427,17 +448,17 @@ function SuggestedActions() {
               key={a.label}
               href={a.href}
               className={cn(
-                "group flex items-start gap-4 rounded-2xl border border-zinc-800/60 bg-zinc-900/70 p-5",
+                "group flex-1 flex flex-col gap-3 rounded-2xl border border-zinc-800/60 bg-zinc-900/70 p-4",
                 "hover:bg-zinc-900 transition-all",
                 a.border
               )}
             >
-              <div className={cn("flex h-10 w-10 shrink-0 items-center justify-center rounded-xl mt-0.5", a.bg)}>
-                <Icon className={cn("h-5 w-5", a.color)} />
+              <div className={cn("flex h-9 w-9 items-center justify-center rounded-xl", a.bg)}>
+                <Icon className={cn("h-4 w-4", a.color)} />
               </div>
               <div>
-                <p className="text-[13px] font-semibold text-zinc-100 leading-snug group-hover:text-white transition-colors">{a.label}</p>
-                <p className="text-[11px] text-zinc-500 mt-1 leading-snug">{a.sub}</p>
+                <p className="text-[12px] font-semibold text-zinc-100 leading-snug group-hover:text-white transition-colors">{a.label}</p>
+                <p className="text-[11px] text-zinc-600 mt-0.5 leading-snug">{a.sub}</p>
               </div>
             </Link>
           );
@@ -501,7 +522,7 @@ function FinancialIndicators({ netWorth, growthPct, score, grade, monthlyExpense
           <div className="text-center mt-1 mb-3">
             <p className="text-[13px] font-semibold" style={{ color }}>{sl}</p>
           </div>
-          <Link href="/dashboard" className="flex items-center justify-center gap-1 w-full rounded-xl border border-zinc-800 py-2 text-[11px] text-zinc-600 hover:text-zinc-300 hover:border-zinc-700 transition-colors">
+          <Link href="/health" className="flex items-center justify-center gap-1 w-full rounded-xl border border-zinc-800 py-2 text-[11px] text-zinc-600 hover:text-zinc-300 hover:border-zinc-700 transition-colors">
             Ver análise <ChevronRight className="h-3 w-3" />
           </Link>
         </div>
@@ -540,10 +561,11 @@ const TL_STYLE = {
   info:    { icon: Info,         ic: "text-blue-400",    bg: "bg-blue-500/10 border-blue-500/20"      },
 };
 
-function buildTimeline(
-  alerts:   InternalAlert[],
-  insights: FinancialInsight[],
-  data:     DashboardData,
+function buildDashboardTimeline(
+  alerts:        InternalAlert[],
+  insights:      FinancialInsight[],
+  radarInsights: RadarInsight[],
+  data:          DashboardData,
 ): TimelineEvent[] {
   const evs: TimelineEvent[] = [];
 
@@ -553,6 +575,12 @@ function buildTimeline(
 
   for (const i of insights.filter(x => x.severity === "success").slice(0, 2)) {
     evs.push({ id: i.id, type: "success", title: i.title, sub: i.metric ?? i.description.split(".")[0] ?? "", time: "Hoje" });
+  }
+
+  // Radar insights — warning/danger only, não duplicar alertas já incluídos
+  const alertIds = new Set(alerts.map(a => a.id));
+  for (const r of radarInsights.filter(r => r.severity !== "info" && !alertIds.has(r.id)).slice(0, 2)) {
+    evs.push({ id: `radar-${r.id}`, type: r.severity, title: r.title, sub: r.description.split(".")[0] ?? "", time: "Hoje" });
   }
 
   const last = data.cashFlow[data.cashFlow.length - 1];
@@ -626,7 +654,7 @@ function ChatBar() {
       className="group flex items-center gap-4 rounded-2xl border border-zinc-800/50 bg-zinc-900/40 px-5 py-4 hover:border-violet-800/40 hover:bg-zinc-900/60 transition-all"
     >
       <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-violet-600/20 group-hover:bg-violet-600/30 transition-colors">
-        <Sparkles className="h-4 w-4 text-violet-400" />
+        <Image src="/brand/nextfire-icon.png" alt="" width={18} height={18} className="h-[18px] w-[18px] object-contain shrink-0" />
       </div>
       <span className="flex-1 text-[13px] text-zinc-600 group-hover:text-zinc-500 transition-colors">
         Pergunte qualquer coisa ao FIRE sobre sua vida financeira…
@@ -647,14 +675,14 @@ function RPHealth({ score, grade }: { score: number; grade: string }) {
     <div className="rounded-2xl border border-zinc-800/60 bg-zinc-900/80 p-5">
       <div className="flex items-center justify-between mb-3">
         <p className="text-[13px] font-semibold text-zinc-100">Health Score</p>
-        <Link href="/dashboard" className="text-[10px] text-zinc-500 hover:text-zinc-300">análise →</Link>
+        <Link href="/health" className="text-[10px] text-zinc-500 hover:text-zinc-300">análise →</Link>
       </div>
       <ScoreArc score={score} sz={130} />
       <div className="text-center mt-1 mb-4">
         <p className="text-[14px] font-bold" style={{ color }}>{sl}</p>
         <p className="text-[11px] text-zinc-600 mt-0.5">{score >= 70 ? "Você está entre os melhores" : "Há espaço para melhorar"}</p>
       </div>
-      <Link href="/dashboard" className="flex items-center justify-center gap-1.5 w-full rounded-xl border border-zinc-800 py-2.5 text-[12px] font-medium text-zinc-400 hover:text-zinc-200 hover:border-zinc-700 transition-colors">
+      <Link href="/health" className="flex items-center justify-center gap-1.5 w-full rounded-xl border border-zinc-800 py-2.5 text-[12px] font-medium text-zinc-400 hover:text-zinc-200 hover:border-zinc-700 transition-colors">
         Ver análise completa <ChevronRight className="h-3.5 w-3.5" />
       </Link>
     </div>
@@ -701,9 +729,23 @@ function RPNextActions() {
 
 // ── Right: Dica da IA ──────────────────────────────────────────
 
-function RPAITip({ fireProgress, fireYear }: { fireProgress: number; fireYear: number | null }) {
+const FI_LEVEL_LABEL: Record<string, string> = {
+  iniciante:  "Iniciante",
+  acumulando: "Acumulando",
+  semi_fi:    "Semi-FI",
+  fi:         "Independência Financeira",
+  fire:       "FIRE atingido",
+};
+
+function RPAITip({
+  fireProgress, fireYear, financialContext,
+}: { fireProgress: number; fireYear: number | null; financialContext: FinancialContext | null }) {
+  const fiLevel  = financialContext?.fire.fiLevel;
+  const fiScore  = financialContext?.fire.fiScore ?? 0;
+  const levelStr = fiLevel ? FI_LEVEL_LABEL[fiLevel] ?? fiLevel : null;
+
   const tip = fireProgress > 0
-    ? `Você já conquistou ${fireProgress.toFixed(0)}% do caminho para a independência financeira${fireYear ? ` (previsão: ${fireYear})` : ""}. Com aportes mensais consistentes é possível antecipar esse prazo significativamente.`
+    ? `Você já conquistou ${fireProgress.toFixed(0)}% do caminho para a independência financeira${fireYear ? ` (previsão: ${fireYear})` : ""}${levelStr ? `. Nível atual: ${levelStr}${fiScore > 0 ? ` (FI Score: ${fiScore.toFixed(0)}%)` : ""}` : ""}. Com aportes mensais consistentes é possível antecipar esse prazo.`
     : "Defina sua meta FIRE e comece a investir regularmente para receber projeções personalizadas da sua independência financeira.";
 
   return (
@@ -759,7 +801,8 @@ function RPShortcuts() {
 // ── Main ───────────────────────────────────────────────────────
 
 export function DashboardClient({
-  data, error, healthSnapshot, financialInsights, alerts,
+  data, error, healthSnapshot, financialInsights, alerts, radarInsights, onboarding,
+  financialContext,
 }: Props) {
   // Derived metrics
   const netWorth        = healthSnapshot?.wealth.netWorth           ?? 0;
@@ -773,7 +816,10 @@ export function DashboardClient({
 
   const isPos     = (growthPct ?? 0) >= 0;
   const growthBRL = growthPct !== null ? Math.abs(netWorth * growthPct / 100) : 0;
-  const fYear     = calcFireYear(netWorth, fireTarget, growthPct);
+  // Prioriza o estimatedFireYear do Context Engine (implementação canônica);
+  // cai para o cálculo local apenas se o contexto não estiver disponível.
+  const fYear     = financialContext?.fire.estimatedFireYear
+    ?? calcFireYear(netWorth, fireTarget, growthPct);
 
   const netSeries  = data.cashFlow.slice(-8).map(m => m.net_result);
   const expSeries  = data.cashFlow.slice(-8).map(m => m.total_expense);
@@ -784,7 +830,7 @@ export function DashboardClient({
   const totalExp  = data.expenseByCategory.reduce((s, c) => s + c.total_amount, 0);
   const topCatPct = totalExp > 0 && topCat ? (topCat.total_amount / totalExp) * 100 : 0;
 
-  const timelineEvents = buildTimeline(alerts, financialInsights, data);
+  const timelineEvents = buildDashboardTimeline(alerts, financialInsights, radarInsights, data);
 
   return (
     <div className="flex gap-6 xl:gap-8 min-h-0">
@@ -828,8 +874,23 @@ export function DashboardClient({
           expSeries={expSeries}
         />
 
-        {/* 5. Timeline */}
+        {/* 5. Alertas — componente dedicado */}
+        {alerts.length > 0 && (
+          <AlertsCard alerts={alerts} />
+        )}
+
+        {/* 6. Insights Financeiros — componente dedicado */}
+        {financialInsights.length > 0 && (
+          <FinancialInsightsCard insights={financialInsights} />
+        )}
+
+        {/* 7. Timeline */}
         {timelineEvents.length > 0 && <Timeline events={timelineEvents} />}
+
+        {/* 8. Onboarding — checklist completo enquanto não finalizado */}
+        {onboarding && !onboarding.isComplete && (
+          <OnboardingChecklist status={onboarding} />
+        )}
 
         {/* 6. Chat bar */}
         <ChatBar />
@@ -839,7 +900,7 @@ export function DashboardClient({
       <div className="w-[280px] shrink-0 hidden xl:flex flex-col gap-4 pb-8">
         <RPHealth score={score} grade={grade} />
         <RPNextActions />
-        <RPAITip fireProgress={fireProgressPct} fireYear={fYear} />
+        <RPAITip fireProgress={fireProgressPct} fireYear={fYear} financialContext={financialContext} />
         <RPShortcuts />
       </div>
     </div>

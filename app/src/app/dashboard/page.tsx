@@ -6,8 +6,10 @@ import { computeHealthFromDashboard }   from "@/services/financial-health";
 import { computeInsightsFromDashboard } from "@/services/financial-insights";
 import { getOnboardingStatus }          from "@/services/onboarding";
 import { getAlerts }                    from "@/services/alerts";
+import { buildFinancialContext }        from "@/lib/financial-context";
 import { AppLayout }                    from "@/components/layout/AppLayout";
 import { DashboardClient }              from "./DashboardClient";
+import { CentralClient }                from "./CentralClient";
 
 export const dynamic = "force-dynamic";
 
@@ -18,9 +20,10 @@ export const metadata: Metadata = {
 /**
  * /dashboard — Server Component
  * Sprint 11.5: adiciona alertas internos ao flow
+ * Sprint 12.3: wire Context Engine
  */
 export default async function DashboardPage() {
-  await requireAuth();
+  const supabaseUser = await requireAuth();
 
   const [result, radarResult] = await Promise.all([
     getDashboardData(),
@@ -57,9 +60,27 @@ export default async function DashboardPage() {
   const alerts     = alertsResult.data ?? [];
   const alertCount = alerts.filter(a => a.severity === "danger").length;
 
+  // Context Engine - funcao pura, zero queries adicionais
+  const financialContext = healthSnapshot
+    ? buildFinancialContext({
+        health:      healthSnapshot,
+        insights:    insightsResult.data ?? [],
+        alerts,
+        connections: [],
+        data,
+      })
+    : null;
+
+  const userProfile = {
+    email:    supabaseUser.email,
+    fullName: supabaseUser.user_metadata?.full_name as string | undefined,
+    avatarUrl:supabaseUser.user_metadata?.avatar_url as string | undefined,
+    plan:     supabaseUser.user_metadata?.plan as string | undefined,
+  };
+
   return (
     <AppLayout hideChrome alertCount={alertCount}>
-      <DashboardClient
+      <CentralClient
         data={data}
         error={result.error}
         radarInsights={radarResult.data ?? []}
@@ -67,6 +88,8 @@ export default async function DashboardPage() {
         financialInsights={insightsResult.data ?? []}
         onboarding={onboardingResult.data ?? null}
         alerts={alerts}
+        financialContext={financialContext}
+        user={userProfile}
       />
     </AppLayout>
   );

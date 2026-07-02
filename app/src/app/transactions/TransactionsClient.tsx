@@ -103,10 +103,8 @@ export function TransactionsClient({
   const [globalError, setGlobalError] = React.useState<string | null>(null);
   const [search, setSearch] = React.useState("");
   const [typeFilter, setTypeFilter] = React.useState<TransactionType | "all">("all");
-  const [monthFilter, setMonthFilter] = React.useState<string>(() => {
-    const now = new Date();
-    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
-  });
+  // Padrão "all" → exibe todas as transações; usuário pode filtrar por mês
+  const [monthFilter, setMonthFilter] = React.useState<string>("all");
 
   const monthOptions = React.useMemo(() => getMonthOptions(), []);
 

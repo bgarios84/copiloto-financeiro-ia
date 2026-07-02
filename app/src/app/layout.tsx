@@ -11,11 +11,16 @@ const inter = Inter({
 
 export const metadata: Metadata = {
   title: {
-    default: "Copiloto Financeiro IA",
-    template: "%s | Copiloto Financeiro IA",
+    default: "NextFire",
+    template: "%s | NextFire",
   },
   description: "Seu copiloto inteligente para gestão financeira pessoal e de investimentos.",
-  keywords: ["finanças", "investimentos", "IA", "orçamento", "portfólio"],
+  keywords: ["finanças", "investimentos", "IA", "orçamento", "portfólio", "FIRE"],
+  icons: {
+    icon: "/brand/nextfire-icon.png",
+    shortcut: "/brand/nextfire-icon.png",
+    apple: "/brand/nextfire-icon.png",
+  },
 };
 
 export const viewport: Viewport = {
