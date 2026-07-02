@@ -10,6 +10,8 @@ interface TransactionItemProps {
   onEdit:      (tx: Transaction) => void;
   onDelete:    (id: string) => void;
   deleting:    boolean;
+  /** Badge opcional renderizado entre o valor e os botões de ação */
+  badge?:      React.ReactNode;
 }
 
 // ── Type visual config ────────────────────────────────────────────────────────
@@ -70,6 +72,7 @@ export function TransactionItem({
   onEdit,
   onDelete,
   deleting,
+  badge,
 }: TransactionItemProps) {
   const [confirmDelete, setConfirmDelete] = React.useState(false);
   const timerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -143,35 +146,44 @@ export function TransactionItem({
         </div>
       </div>
 
-      {/* Amount */}
-      <p className={cn("shrink-0 text-[14px] font-bold tabular-nums", cfg.amountColor)}>
-        {cfg.prefix}{formatCurrency(tx.amount)}
-        {tx.currency !== "BRL" && (
-          <span className="ml-1 text-[10px] font-normal text-muted-foreground">{tx.currency}</span>
-        )}
-      </p>
-
-      {/* Actions */}
-      <div className="flex shrink-0 items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
-        <button
-          onClick={() => onEdit(tx)}
-          className="flex h-7 w-7 items-center justify-center rounded-lg text-muted-foreground hover:bg-secondary hover:text-foreground"
-          aria-label="Editar"
-        >
-          <Pencil className="h-3.5 w-3.5" />
-        </button>
-        <button
-          onClick={handleDeleteClick}
-          className={cn(
-            "flex h-7 items-center justify-center rounded-lg text-[10px] font-semibold transition-all",
-            confirmDelete
-              ? "w-auto px-2 bg-destructive text-white"
-              : "w-7 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+      {/* Right side: valor · badge · ações — nunca sobrepõem */}
+      <div className="flex items-center gap-3 shrink-0">
+        {/* Valor */}
+        <p className={cn(
+          "font-bold tabular-nums whitespace-nowrap text-right text-[14px]",
+          cfg.amountColor
+        )}>
+          {cfg.prefix}{formatCurrency(tx.amount)}
+          {tx.currency !== "BRL" && (
+            <span className="ml-1 text-[10px] font-normal text-muted-foreground">{tx.currency}</span>
           )}
-          aria-label="Excluir"
-        >
-          {confirmDelete ? "Confirmar?" : <Trash2 className="h-3.5 w-3.5" />}
-        </button>
+        </p>
+
+        {/* Badge opcional (Status IA) */}
+        {badge}
+
+        {/* Ações */}
+        <div className="flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+          <button
+            onClick={() => onEdit(tx)}
+            className="flex h-7 w-7 items-center justify-center rounded-lg text-muted-foreground hover:bg-secondary hover:text-foreground"
+            aria-label="Editar"
+          >
+            <Pencil className="h-3.5 w-3.5" />
+          </button>
+          <button
+            onClick={handleDeleteClick}
+            className={cn(
+              "flex h-7 items-center justify-center rounded-lg text-[10px] font-semibold transition-all",
+              confirmDelete
+                ? "w-auto px-2 bg-destructive text-white"
+                : "w-7 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+            )}
+            aria-label="Excluir"
+          >
+            {confirmDelete ? "Confirmar?" : <Trash2 className="h-3.5 w-3.5" />}
+          </button>
+        </div>
       </div>
     </div>
   );

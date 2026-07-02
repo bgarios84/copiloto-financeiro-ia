@@ -150,11 +150,40 @@ export async function updateBudget(
   }
 }
 
-// ── Delete (soft) ─────────────────────────────────────────────────────────────
+// ── Budget coverage (all-time) ────────────────────────────────────────────────
+
+/**
+ * Retorna os category_ids distintos de todos os orçamentos ativos (sem filtro de mês).
+ * Usado para calcular cobertura de orçamento por categoria nas métricas da página
+ * de transações, independente do mês consultado.
+ */
+export async function getActiveBudgetCategoryIds(): Promise<ServiceResult<string[]>> {
+  try {
+    await requireAuth();
+    const supabase = await createClient();
+
+    const { data, error } = await supabase
+      .from("budget")
+      .select("category_id")
+      .is("deleted_at", null)
+      .not("category_id", "is", null);
+
+    if (error) return { data: null, error: error.message };
+
+    const ids = [...new Set(
+      (data as { category_id: string }[]).map((r) => r.category_id)
+    )];
+    return { data: ids, error: null };
+  } catch {
+    return { data: null, error: "Erro ao buscar categorias com orcamento." };
+  }
+}
+
+// ── Delete (soft) ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
 /**
  * Soft-delete: seta deleted_at = now().
- * Localiza via composite key (user_id implícito via RLS, category_id, month).
+ * Localiza via composite key (user_id implicito via RLS, category_id, month).
  */
 export async function deleteBudget(
   categoryId: string,
@@ -178,6 +207,6 @@ export async function deleteBudget(
     revalidatePath("/budgets");
     return { data: true, error: null };
   } catch {
-    return { data: null, error: "Erro ao excluir orçamento." };
+    return { data: null, error: "Erro ao excluir orcamento." };
   }
 }
